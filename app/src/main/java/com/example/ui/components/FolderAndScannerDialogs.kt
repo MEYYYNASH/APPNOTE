@@ -43,6 +43,27 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Book
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Contrast
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.RocketLaunch
+import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.SubdirectoryArrowRight
+import androidx.compose.material.icons.rounded.Tonality
+import androidx.compose.material.icons.rounded.Work
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -64,6 +85,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -71,6 +93,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -80,6 +103,7 @@ import com.example.model.AttachmentType
 import com.example.model.Note
 import com.example.model.NoteColor
 import com.example.model.NoteFolder
+import com.example.ui.icons.LineIcon
 import com.example.ui.icons.LineIconType
 import com.example.ui.theme.LocalGlassTokens
 import java.io.ByteArrayOutputStream
@@ -87,19 +111,31 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
-private val FOLDER_ICON_OPTIONS = listOf(
-    "folder" to "📁",
-    "rocket" to "🚀",
-    "briefcase" to "💼",
-    "heart" to "💜",
-    "scan" to "📄",
-    "star" to "⭐",
-    "book" to "📚",
-    "code" to "💻"
+private val FOLDER_ICON_OPTIONS: List<Pair<String, ImageVector>> = listOf(
+    "folder" to Icons.Rounded.Folder,
+    "rocket" to Icons.Rounded.RocketLaunch,
+    "briefcase" to Icons.Rounded.Work,
+    "heart" to Icons.Rounded.Favorite,
+    "scan" to Icons.Rounded.Description,
+    "star" to Icons.Rounded.Star,
+    "book" to Icons.Rounded.Book,
+    "code" to Icons.Rounded.Code
 )
 
-fun folderIconSymbol(iconId: String): String {
-    return FOLDER_ICON_OPTIONS.find { it.first == iconId }?.second ?: "📁"
+@Composable
+fun FolderIconGlyph(
+    iconId: String,
+    tint: Color,
+    size: Dp = 18.dp,
+    contentDescription: String? = null
+) {
+    val vector = FOLDER_ICON_OPTIONS.find { it.first == iconId }?.second ?: Icons.Rounded.Folder
+    Icon(
+        imageVector = vector,
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = Modifier.size(size)
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -364,24 +400,30 @@ fun FoldersManagerDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("Icon:", color = tokens.textSecondary, fontSize = 11.5.sp)
-                            FOLDER_ICON_OPTIONS.forEach { (iconId, emoji) ->
+                            FOLDER_ICON_OPTIONS.forEach { (iconId, vector) ->
+                                val isChosen = newIconId == iconId
                                 Box(
                                     modifier = Modifier
                                         .size(32.dp)
                                         .clip(CircleShape)
                                         .background(
-                                            if (newIconId == iconId) accentColor.copy(alpha = 0.28f)
+                                            if (isChosen) accentColor.copy(alpha = 0.28f)
                                             else Color.Transparent
                                         )
                                         .border(
                                             1.dp,
-                                            if (newIconId == iconId) accentColor else tokens.panelBorder,
+                                            if (isChosen) accentColor else tokens.panelBorder,
                                             CircleShape
                                         )
                                         .clickable { newIconId = iconId },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(emoji, fontSize = 14.sp)
+                                    Icon(
+                                        imageVector = vector,
+                                        contentDescription = iconId,
+                                        tint = if (isChosen) accentColor else tokens.textPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             }
                         }
@@ -424,9 +466,17 @@ fun FoldersManagerDialog(
                             )
                             folders.filter { !it.isTrashed && it.parentId == null }.forEach { parent ->
                                 GlassPillButton(
-                                    text = "↳ ${parent.name}",
+                                    text = parent.name,
                                     selected = newParentId == parent.id,
                                     accentColor = accentColor,
+                                    leadingIcon = { tint ->
+                                        Icon(
+                                            imageVector = Icons.Rounded.SubdirectoryArrowRight,
+                                            contentDescription = null,
+                                            tint = tint,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    },
                                     onClick = { newParentId = parent.id }
                                 )
                             }
@@ -438,9 +488,12 @@ fun FoldersManagerDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             GlassPillButton(
-                                text = if (newIsSmart) "✓ Smart Folder Enabled" else "Make Smart Folder",
+                                text = if (newIsSmart) "Smart Folder Enabled" else "Make Smart Folder",
                                 selected = newIsSmart,
                                 accentColor = accentColor,
+                                leadingIcon = if (newIsSmart) {
+                                    { tint -> LineIcon(type = LineIconType.CHECK, tint = tint, size = 13.dp) }
+                                } else null,
                                 onClick = { newIsSmart = !newIsSmart }
                             )
                             if (newIsSmart) {
@@ -522,8 +575,16 @@ fun FoldersManagerDialog(
                                 fontWeight = FontWeight.Bold
                             )
                             GlassPillButton(
-                                text = "← Back to Folders",
+                                text = "Back to Folders",
                                 accentColor = accentColor,
+                                leadingIcon = { tint ->
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                        contentDescription = null,
+                                        tint = tint,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                },
                                 onClick = { managingNotesForFolder = null }
                             )
                         }
@@ -561,9 +622,12 @@ fun FoldersManagerDialog(
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         GlassPillButton(
-                                            text = if (inFolder) "✓ In Folder" else "Move Here",
+                                            text = if (inFolder) "In Folder" else "Move Here",
                                             selected = inFolder,
                                             accentColor = accentColor,
+                                            leadingIcon = if (inFolder) {
+                                                { tint -> LineIcon(type = LineIconType.CHECK, tint = tint, size = 13.dp) }
+                                            } else null,
                                             onClick = {
                                                 onMoveNoteToFolder(
                                                     note.id,
@@ -629,7 +693,11 @@ fun FoldersManagerDialog(
                                                 .border(1.dp, folder.color.dotColor, RoundedCornerShape(12.dp)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(folderIconSymbol(folder.iconId), fontSize = 17.sp)
+                                            FolderIconGlyph(
+                                                iconId = folder.iconId,
+                                                tint = folder.color.dotColor,
+                                                size = 18.dp
+                                            )
                                         }
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Column(modifier = Modifier.weight(1f)) {
@@ -652,7 +720,11 @@ fun FoldersManagerDialog(
                                                 )
                                                 if (folder.isPinned) {
                                                     Spacer(modifier = Modifier.width(6.dp))
-                                                    Text("📌", fontSize = 11.sp)
+                                                    LineIcon(
+                                                        type = LineIconType.PIN,
+                                                        tint = folder.color.dotColor,
+                                                        size = 12.dp
+                                                    )
                                                 }
                                                 if (folder.isSmart) {
                                                     Spacer(modifier = Modifier.width(6.dp))
@@ -773,13 +845,29 @@ fun FoldersManagerDialog(
                                             onClick = { managingNotesForFolder = folder }
                                         )
                                         GlassPillButton(
-                                            text = "↑",
+                                            text = "Up",
                                             accentColor = accentColor,
+                                            leadingIcon = { tint ->
+                                                Icon(
+                                                    imageVector = Icons.Rounded.ArrowUpward,
+                                                    contentDescription = "Move up",
+                                                    tint = tint,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                            },
                                             onClick = { onReorderFolder(folder.id, true) }
                                         )
                                         GlassPillButton(
-                                            text = "↓",
+                                            text = "Down",
                                             accentColor = accentColor,
+                                            leadingIcon = { tint ->
+                                                Icon(
+                                                    imageVector = Icons.Rounded.ArrowDownward,
+                                                    contentDescription = "Move down",
+                                                    tint = tint,
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                            },
                                             onClick = { onReorderFolder(folder.id, false) }
                                         )
                                         GlassPillButton(
@@ -988,9 +1076,10 @@ fun DocumentScannerDialog(
 
                     val folderList = (listOf("Scanned Docs", "Personal", "Work", "Projects") + availableFolders).distinct()
                     GlassPillButton(
-                        text = "📁 $selectedFolder",
+                        text = selectedFolder,
                         selected = true,
                         accentColor = accentColor,
+                        leadingIcon = { tint -> LineIcon(type = LineIconType.FOLDER, tint = tint, size = 13.dp) },
                         onClick = {
                             val idx = folderList.indexOf(selectedFolder)
                             selectedFolder = folderList[(idx + 1) % folderList.size]
@@ -1007,9 +1096,10 @@ fun DocumentScannerDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     GlassPillButton(
-                        text = "📷 Camera Scan",
+                        text = "Camera Scan",
                         selected = true,
                         accentColor = accentColor,
+                        leadingIcon = { tint -> LineIcon(type = LineIconType.CAMERA, tint = tint, size = 14.dp) },
                         onClick = {
                             try {
                                 cameraLauncher.launch(null)
@@ -1019,8 +1109,9 @@ fun DocumentScannerDialog(
                         modifier = Modifier.testTag("scanner_camera_button")
                     )
                     GlassPillButton(
-                        text = "🖼️ Gallery Import",
+                        text = "Gallery Import",
                         accentColor = accentColor,
+                        leadingIcon = { tint -> LineIcon(type = LineIconType.IMAGE, tint = tint, size = 14.dp) },
                         onClick = {
                             try {
                                 galleryLauncher.launch(
@@ -1129,18 +1220,35 @@ fun DocumentScannerDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         GlassPillButton(
-                            text = "◀ Prev",
+                            text = "Prev",
                             accentColor = accentColor,
+                            leadingIcon = { tint ->
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronLeft,
+                                    contentDescription = null,
+                                    tint = tint,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
                             onClick = { if (currentPageIndex > 0) currentPageIndex -= 1 }
                         )
                         GlassPillButton(
-                            text = "Next ▶",
+                            text = "Next",
                             accentColor = accentColor,
+                            leadingIcon = { tint ->
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = tint,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
                             onClick = { if (currentPageIndex < pages.lastIndex) currentPageIndex += 1 }
                         )
                         GlassPillButton(
-                            text = "↻ Rotate 90°",
+                            text = "Rotate 90°",
                             accentColor = accentColor,
+                            leadingIcon = { tint -> LineIcon(type = LineIconType.ROTATE, tint = tint, size = 13.dp) },
                             onClick = {
                                 pages[safeIndex] = currentPage.copy(
                                     rotationDeg = (currentPage.rotationDeg + 90) % 360
@@ -1148,8 +1256,16 @@ fun DocumentScannerDialog(
                             }
                         )
                         GlassPillButton(
-                            text = "Move Page ←",
+                            text = "Move Left",
                             accentColor = accentColor,
+                            leadingIcon = { tint ->
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronLeft,
+                                    contentDescription = null,
+                                    tint = tint,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
                             onClick = {
                                 if (safeIndex > 0) {
                                     val item = pages.removeAt(safeIndex)
@@ -1159,8 +1275,16 @@ fun DocumentScannerDialog(
                             }
                         )
                         GlassPillButton(
-                            text = "Move Page →",
+                            text = "Move Right",
                             accentColor = accentColor,
+                            leadingIcon = { tint ->
+                                Icon(
+                                    imageVector = Icons.Rounded.ChevronRight,
+                                    contentDescription = null,
+                                    tint = tint,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            },
                             onClick = {
                                 if (safeIndex < pages.lastIndex) {
                                     val item = pages.removeAt(safeIndex)
@@ -1190,9 +1314,12 @@ fun DocumentScannerDialog(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         GlassPillButton(
-                            text = if (currentPage.autoEdgeDetected) "✓ Auto Edge" else "Auto Edge",
+                            text = "Auto Edge",
                             selected = currentPage.autoEdgeDetected,
                             accentColor = accentColor,
+                            leadingIcon = if (currentPage.autoEdgeDetected) {
+                                { tint -> LineIcon(type = LineIconType.CHECK, tint = tint, size = 13.dp) }
+                            } else null,
                             onClick = {
                                 pages[safeIndex] = currentPage.copy(autoEdgeDetected = !currentPage.autoEdgeDetected)
                             }
@@ -1261,15 +1388,23 @@ fun DocumentScannerDialog(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         listOf(
-                            "enhanced" to "✨ Enhanced",
-                            "bw" to "⬛ Black & White",
-                            "grayscale" to "🌗 Grayscale",
-                            "original" to "🖼️ Original"
-                        ).forEach { (mode, label) ->
+                            Triple("enhanced", "Enhanced", Icons.Rounded.AutoAwesome),
+                            Triple("bw", "Black & White", Icons.Rounded.Contrast),
+                            Triple("grayscale", "Grayscale", Icons.Rounded.Tonality),
+                            Triple("original", "Original", Icons.Rounded.Image)
+                        ).forEach { (mode, label, filterIcon) ->
                             GlassPillButton(
                                 text = label,
                                 selected = currentPage.filterMode == mode,
                                 accentColor = accentColor,
+                                leadingIcon = { tint ->
+                                    Icon(
+                                        imageVector = filterIcon,
+                                        contentDescription = null,
+                                        tint = tint,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                },
                                 onClick = {
                                     pages[safeIndex] = currentPage.copy(filterMode = mode)
                                 }
@@ -1292,12 +1427,22 @@ fun DocumentScannerDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "🔍 OCR Text Recognition (Page ${safeIndex + 1})",
-                                color = tokens.textPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                LineIcon(
+                                    type = LineIconType.SEARCH,
+                                    tint = accentColor,
+                                    size = 14.dp
+                                )
+                                Text(
+                                    text = "OCR Text Recognition (Page ${safeIndex + 1})",
+                                    color = tokens.textPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                             GlassPillButton(
                                 text = "Re-run OCR",
                                 accentColor = accentColor,
@@ -1343,8 +1488,9 @@ fun DocumentScannerDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     GlassPillButton(
-                        text = "📤 Export & Share PDF",
+                        text = "Export & Share PDF",
                         accentColor = accentColor,
+                        leadingIcon = { tint -> LineIcon(type = LineIconType.SHARE, tint = tint, size = 13.dp) },
                         onClick = {
                             val pdfFile = generateMultiPagePdfFile(context, documentName, pages)
                             if (pdfFile != null) {
@@ -1356,9 +1502,17 @@ fun DocumentScannerDialog(
                     )
 
                     GlassPillButton(
-                        text = "💾 Save PDF + OCR to Note",
+                        text = "Save PDF + OCR to Note",
                         selected = true,
                         accentColor = accentColor,
+                        leadingIcon = { tint ->
+                            Icon(
+                                imageVector = Icons.Rounded.Save,
+                                contentDescription = null,
+                                tint = tint,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        },
                         onClick = {
                             val pdfFile = generateMultiPagePdfFile(context, documentName, pages)
                             val pdfBase64 = if (pdfFile != null && pdfFile.exists()) {

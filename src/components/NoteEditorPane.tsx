@@ -350,7 +350,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
         note.isPinned
       );
     } else {
-      const body = note.checklist.map((i) => (i.isDone ? `✓ ${i.text}` : i.text)).join('\n');
+      const body = note.checklist.map((i) => (i.isDone ? `[x] ${i.text}` : `- [ ] ${i.text}`)).join('\n');
       onUpdateNote(note.title, body, false, [], note.tags, note.folder, note.color, note.isPinned);
     }
   };

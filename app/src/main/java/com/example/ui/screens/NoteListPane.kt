@@ -777,7 +777,7 @@ private fun CleanGlassNoteRowCard(
             if (note.isChecklist) add("Checklist")
             if (note.folder.isNotBlank()) add(note.folder)
             if (hasActiveReminder && note.reminderAt != null) {
-                add("⏰ ${ReminderScheduler.formatReminderTime(note.reminderAt)}")
+                add("Reminder ${ReminderScheduler.formatReminderTime(note.reminderAt)}")
             }
         }.joinToString(" · ")
     }

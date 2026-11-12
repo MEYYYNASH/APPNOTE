@@ -11,8 +11,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.LocalSize
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionParametersOf
@@ -42,6 +45,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
 import androidx.glance.layout.width
 import androidx.glance.state.GlanceStateDefinition
 import androidx.glance.state.PreferencesGlanceStateDefinition
@@ -50,6 +54,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.example.MainActivity
+import com.example.R
 import com.example.data.NotesRepository
 import com.example.data.local.AppDatabase
 import com.example.data.local.toEntity
@@ -316,15 +321,24 @@ class GlassNotesGlanceWidget(
             )
             if (upcomingReminder?.reminderAt != null) {
                 val fmt = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(upcomingReminder.reminderAt))
-                Text(
-                    text = "⏰ $fmt",
-                    style = TextStyle(
-                        color = ColorProvider(Color(0xFFF472B6)),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
-                    ),
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        provider = ImageProvider(R.drawable.ic_widget_bell),
+                        contentDescription = "Reminder",
+                        colorFilter = ColorFilter.tint(ColorProvider(Color(0xFFF472B6))),
+                        modifier = GlanceModifier.size(12.dp)
+                    )
+                    Spacer(modifier = GlanceModifier.width(4.dp))
+                    Text(
+                        text = fmt,
+                        style = TextStyle(
+                            color = ColorProvider(Color(0xFFF472B6)),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        maxLines = 1
+                    )
+                }
                 Spacer(modifier = GlanceModifier.height(4.dp))
             }
             Row(modifier = GlanceModifier.fillMaxWidth()) {
@@ -356,9 +370,11 @@ class GlassNotesGlanceWidget(
                         .clickable(actionStartActivity(reminderIntent)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "⏰",
-                        style = TextStyle(fontSize = 12.sp)
+                    Image(
+                        provider = ImageProvider(R.drawable.ic_widget_bell),
+                        contentDescription = "Quick Reminder",
+                        colorFilter = ColorFilter.tint(ColorProvider(primaryText)),
+                        modifier = GlanceModifier.size(14.dp)
                     )
                 }
             }
@@ -480,13 +496,15 @@ class GlassNotesGlanceWidget(
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = if (item.isDone) "✓" else "○",
-                                    style = TextStyle(
-                                        color = ColorProvider(if (item.isDone) Color(0xFF34D399) else accentViolet),
-                                        fontSize = (fontSizeSp + 1).sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                Image(
+                                    provider = ImageProvider(
+                                        if (item.isDone) R.drawable.ic_widget_check else R.drawable.ic_widget_circle
+                                    ),
+                                    contentDescription = if (item.isDone) "Done" else "Pending",
+                                    colorFilter = ColorFilter.tint(
+                                        ColorProvider(if (item.isDone) Color(0xFF34D399) else accentViolet)
+                                    ),
+                                    modifier = GlanceModifier.size(16.dp)
                                 )
                                 Spacer(modifier = GlanceModifier.width(8.dp))
                                 Text(
@@ -505,11 +523,20 @@ class GlassNotesGlanceWidget(
             }
             if (upcomingReminder?.reminderAt != null) {
                 val fmt = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(upcomingReminder.reminderAt))
-                Text(
-                    text = "⏰ ${upcomingReminder.title.ifBlank { "Reminder" }} • $fmt",
-                    style = TextStyle(color = ColorProvider(Color(0xFFF472B6)), fontSize = 10.sp),
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        provider = ImageProvider(R.drawable.ic_widget_bell),
+                        contentDescription = "Reminder",
+                        colorFilter = ColorFilter.tint(ColorProvider(Color(0xFFF472B6))),
+                        modifier = GlanceModifier.size(11.dp)
+                    )
+                    Spacer(modifier = GlanceModifier.width(4.dp))
+                    Text(
+                        text = "${upcomingReminder.title.ifBlank { "Reminder" }} • $fmt",
+                        style = TextStyle(color = ColorProvider(Color(0xFFF472B6)), fontSize = 10.sp),
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
@@ -535,15 +562,26 @@ class GlassNotesGlanceWidget(
                 modifier = GlanceModifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "⏰ Reminders",
-                    style = TextStyle(
-                        color = ColorProvider(primaryText),
-                        fontSize = (fontSizeSp + 1).sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    modifier = GlanceModifier.defaultWeight()
-                )
+                Row(
+                    modifier = GlanceModifier.defaultWeight(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(
+                        provider = ImageProvider(R.drawable.ic_widget_bell),
+                        contentDescription = "Reminders",
+                        colorFilter = ColorFilter.tint(ColorProvider(Color(0xFFF472B6))),
+                        modifier = GlanceModifier.size(16.dp)
+                    )
+                    Spacer(modifier = GlanceModifier.width(6.dp))
+                    Text(
+                        text = "Reminders",
+                        style = TextStyle(
+                            color = ColorProvider(primaryText),
+                            fontSize = (fontSizeSp + 1).sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
                 Box(
                     modifier = GlanceModifier
                         .height(26.dp)
@@ -663,9 +701,11 @@ class GlassNotesGlanceWidget(
                         .padding(horizontal = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "⏰",
-                        style = TextStyle(fontSize = 11.sp)
+                    Image(
+                        provider = ImageProvider(R.drawable.ic_widget_bell),
+                        contentDescription = "Quick Reminder",
+                        colorFilter = ColorFilter.tint(ColorProvider(primaryText)),
+                        modifier = GlanceModifier.size(14.dp)
                     )
                 }
                 Spacer(modifier = GlanceModifier.width(6.dp))
@@ -706,8 +746,15 @@ class GlassNotesGlanceWidget(
                         .padding(horizontal = 10.dp, vertical = 5.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Image(
+                        provider = ImageProvider(R.drawable.ic_widget_bell),
+                        contentDescription = "Upcoming Reminder",
+                        colorFilter = ColorFilter.tint(ColorProvider(Color(0xFFF9A8D4))),
+                        modifier = GlanceModifier.size(13.dp)
+                    )
+                    Spacer(modifier = GlanceModifier.width(6.dp))
                     Text(
-                        text = "⏰ ${upcomingReminder.title.ifBlank { "Upcoming Reminder" }}",
+                        text = upcomingReminder.title.ifBlank { "Upcoming Reminder" },
                         style = TextStyle(
                             color = ColorProvider(primaryText),
                             fontSize = 11.sp,

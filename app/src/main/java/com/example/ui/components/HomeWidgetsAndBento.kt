@@ -26,8 +26,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,6 +69,8 @@ import com.example.model.FilterTab
 import com.example.model.Note
 import com.example.model.NoteColor
 import com.example.model.NoteFolder
+import com.example.ui.icons.LineIcon
+import com.example.ui.icons.LineIconType
 import com.example.ui.theme.LocalGlassTokens
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -518,11 +527,10 @@ fun InteractiveGlassWidgetsStrip(
                         .testTag("pomodoro_toggle_button"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = if (pomodoroRunning) "❚❚" else "▶",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                    LineIcon(
+                        type = if (pomodoroRunning) LineIconType.PAUSE else LineIconType.PLAY,
+                        tint = Color.White,
+                        size = 15.dp
                     )
                 }
             }
@@ -563,12 +571,12 @@ fun InteractiveGlassWidgetsStrip(
                         .align(Alignment.Center)
                         .padding(top = 6.dp)
                 )
-                Text(
-                    text = if (quoteLiked) "♥" else "♡",
-                    color = if (quoteLiked) Color(0xFFBE185D) else Color(0xFF6D28D9),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
+                Icon(
+                    imageVector = if (quoteLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    contentDescription = if (quoteLiked) "Liked quote" else "Like quote",
+                    tint = if (quoteLiked) Color(0xFFBE185D) else Color(0xFF6D28D9),
                     modifier = Modifier
+                        .size(16.dp)
                         .align(Alignment.BottomEnd)
                         .clickable { quoteLiked = !quoteLiked }
                 )
@@ -711,11 +719,10 @@ fun NeonFilterPillsRow(
                 tag = "neon_tab_more",
                 onClick = { showMoreMenu = true },
                 leadingIcon = {
-                    Text(
-                        text = "•••",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black
+                    LineIcon(
+                        type = LineIconType.MORE,
+                        tint = Color.White,
+                        size = 15.dp
                     )
                 }
             )
@@ -982,9 +989,19 @@ fun NeonBentoNoteCard(
             contentAlignment = Alignment.Center
         ) {
             when (cardPalette.ribbonType) {
-                "star" -> Text("★", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                "star" -> Icon(
+                    imageVector = Icons.Rounded.Star,
+                    contentDescription = "Favorite",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
                 "calendar" -> LineCalendarIcon(color = Color.White, modifier = Modifier.size(14.dp))
-                "heart" -> Text("♥", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black)
+                "heart" -> Icon(
+                    imageVector = Icons.Rounded.Favorite,
+                    contentDescription = "Favorite",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
                 else -> LinePinIcon(color = Color.White, filled = true, modifier = Modifier.size(14.dp))
             }
         }
@@ -1003,11 +1020,11 @@ fun NeonBentoNoteCard(
                     .testTag("bento_card_menu_${note.id}"),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "⋮",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                Icon(
+                    imageVector = Icons.Rounded.MoreVert,
+                    contentDescription = "Note options",
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(18.dp)
                 )
             }
 
@@ -1023,7 +1040,14 @@ fun NeonBentoNoteCard(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text(if (note.isFavorite) "Remove from Favorites" else "Add to Favorites ★") },
+                    text = { Text(if (note.isFavorite) "Remove from Favorites" else "Add to Favorites") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Star,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
                     onClick = {
                         showMenu = false
                         onToggleFavorite()
@@ -1068,7 +1092,14 @@ fun NeonBentoNoteCard(
                 val foldersList = (listOf("Personal", "Projects", "Work", "Journal") + availableFolders).distinct()
                 foldersList.forEach { folderName ->
                     DropdownMenuItem(
-                        text = { Text("📁 $folderName") },
+                        text = { Text(folderName) },
+                        leadingIcon = {
+                            LineIcon(
+                                type = LineIconType.FOLDER,
+                                tint = Color(0xFFA78BFA),
+                                size = 16.dp
+                            )
+                        },
                         onClick = {
                             showFolderSubMenu = false
                             if (copyMode) onCopyToFolder(folderName) else onMoveToFolder(folderName)
@@ -1126,11 +1157,10 @@ fun NeonBentoNoteCard(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (item.isDone) {
-                                        Text(
-                                            text = "✓",
-                                            color = Color.White,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Black
+                                        LineIcon(
+                                            type = LineIconType.CHECK,
+                                            tint = Color.White,
+                                            size = 10.dp
                                         )
                                     }
                                 }
@@ -1390,11 +1420,11 @@ fun NeonBentoBottomBar(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = "⌄",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
@@ -1412,7 +1442,14 @@ fun NeonBentoBottomBar(
                     val folders = (listOf("Personal", "Projects", "Work", "Journal") + availableFolders).distinct()
                     folders.forEach { folderName ->
                         DropdownMenuItem(
-                            text = { Text("📁 $folderName") },
+                            text = { Text(folderName) },
+                            leadingIcon = {
+                                LineIcon(
+                                    type = LineIconType.FOLDER,
+                                    tint = Color(0xFFA78BFA),
+                                    size = 16.dp
+                                )
+                            },
                             onClick = {
                                 showFolderDropdown = false
                                 onSelectFolder(folderName)
@@ -1420,7 +1457,14 @@ fun NeonBentoBottomBar(
                         )
                     }
                     DropdownMenuItem(
-                        text = { Text(if (isKhmer) "⚙️ គ្រប់គ្រងថតឯកសារ..." else "⚙️ Manage Folders...") },
+                        text = { Text(if (isKhmer) "គ្រប់គ្រងថតឯកសារ..." else "Manage Folders...") },
+                        leadingIcon = {
+                            LineIcon(
+                                type = LineIconType.SETTINGS,
+                                tint = Color(0xFFA78BFA),
+                                size = 16.dp
+                            )
+                        },
                         onClick = {
                             showFolderDropdown = false
                             onOpenFoldersManager()

@@ -519,12 +519,22 @@ fun ReminderPickerDialog(
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                                 .testTag("per_reminder_preview_sound_btn")
                         ) {
-                            Text(
-                                text = if (isKhmer) "▶ ស្តាប់សាកល្បង" else "▶ Preview Sound",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = tokens.textPrimary,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                LineIcon(
+                                    type = LineIconType.PLAY,
+                                    tint = tokens.textPrimary,
+                                    size = 12.dp
+                                )
+                                Text(
+                                    text = if (isKhmer) "ស្តាប់សាកល្បង" else "Preview Sound",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = tokens.textPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
 

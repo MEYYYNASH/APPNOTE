@@ -608,11 +608,13 @@ private fun WidgetLivePreviewBox(
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .background(Color(0xFFF59E0B).copy(alpha = 0.25f))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "⏰",
-                                fontSize = 10.sp
+                            LineIcon(
+                                type = LineIconType.BELL,
+                                tint = Color(0xFFFBBF24),
+                                size = 12.dp
                             )
                         }
                     }
@@ -621,17 +623,27 @@ private fun WidgetLivePreviewBox(
 
             if (config.showUpcomingReminder) {
                 val remLabel = if (nextReminder?.reminderAt != null) {
-                    "⏰ ${nextReminder.title.ifBlank { "Reminder" }} • ${ReminderScheduler.formatReminderTime(nextReminder.reminderAt)}"
+                    "${nextReminder.title.ifBlank { "Reminder" }} • ${ReminderScheduler.formatReminderTime(nextReminder.reminderAt)}"
                 } else {
-                    "⏰ Tap bell to create a quick reminder"
+                    "Tap bell to create a quick reminder"
                 }
-                Text(
-                    text = remLabel,
-                    fontSize = (config.textSizeSp - 2).coerceAtLeast(9).sp,
-                    color = Color(0xFFFBBF24),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    LineIcon(
+                        type = LineIconType.BELL,
+                        tint = Color(0xFFFBBF24),
+                        size = 11.dp
+                    )
+                    Text(
+                        text = remLabel,
+                        fontSize = (config.textSizeSp - 2).coerceAtLeast(9).sp,
+                        color = Color(0xFFFBBF24),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             when (config.widgetType) {
@@ -645,13 +657,38 @@ private fun WidgetLivePreviewBox(
                         )
                     } else {
                         items.forEach { item ->
-                            Text(
-                                text = "${if (item.isDone) "☑" else "☐"} ${item.text.ifBlank { "Task" }}",
-                                fontSize = config.textSizeSp.sp,
-                                color = textColor.copy(alpha = if (item.isDone) 0.55f else 0.92f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (item.isDone) Color(0xFF34D399) else Color.Transparent)
+                                        .border(
+                                            width = 1.4.dp,
+                                            color = if (item.isDone) Color(0xFF34D399) else Color(0xFFA78BFA),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (item.isDone) {
+                                        LineIcon(
+                                            type = LineIconType.CHECK,
+                                            tint = Color.White,
+                                            size = 10.dp
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = item.text.ifBlank { "Task" },
+                                    fontSize = config.textSizeSp.sp,
+                                    color = textColor.copy(alpha = if (item.isDone) 0.55f else 0.92f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
@@ -892,11 +929,9 @@ fun QuickReminderDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SectionLabel(if (isKhmer) "សំឡេងរោទ៍" else "Alarm Sound")
-                    Text(
-                        text = if (isKhmer) "▶ សាកស្តាប់" else "▶ Preview",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = tokens.accentStart,
-                        fontWeight = FontWeight.Bold,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .clickable {
@@ -908,7 +943,19 @@ fun QuickReminderDialog(
                                 )
                             }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                    ) {
+                        LineIcon(
+                            type = LineIconType.PLAY,
+                            tint = tokens.accentStart,
+                            size = 12.dp
+                        )
+                        Text(
+                            text = if (isKhmer) "សាកស្តាប់" else "Preview",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = tokens.accentStart,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),

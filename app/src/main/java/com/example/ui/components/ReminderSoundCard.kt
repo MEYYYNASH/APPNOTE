@@ -24,6 +24,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AudioFile
+import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
@@ -132,9 +145,17 @@ fun CustomReminderSoundSettingsCard(
                     )
                 }
                 GlassPillButton(
-                    text = if (isPlayingPreview) "■ Stop" else "▶ Test Sound",
+                    text = if (isPlayingPreview) "Stop" else "Test Sound",
                     selected = true,
                     accentColor = accentColor,
+                    leadingIcon = { tint ->
+                        Icon(
+                            imageVector = if (isPlayingPreview) Icons.Rounded.Stop else Icons.Rounded.PlayArrow,
+                            contentDescription = null,
+                            tint = tint,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
                     onClick = {
                         if (isPlayingPreview) {
                             AudioHelper.stopActivePlayback()
@@ -177,15 +198,23 @@ fun CustomReminderSoundSettingsCard(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf(
-                    "sound_vibration" to "🔔 Sound + Vibration",
-                    "sound_only" to "🔊 Sound Only",
-                    "vibration_only" to "📳 Vibration Only",
-                    "silent" to "🔕 Silent (No Sound)"
-                ).forEach { (modeId, label) ->
+                    Triple("sound_vibration", "Sound + Vibration", Icons.Rounded.NotificationsActive),
+                    Triple("sound_only", "Sound Only", Icons.Rounded.VolumeUp),
+                    Triple("vibration_only", "Vibration Only", Icons.Rounded.Vibration),
+                    Triple("silent", "Silent (No Sound)", Icons.Rounded.NotificationsOff)
+                ).forEach { (modeId, label, modeIcon) ->
                     GlassPillButton(
                         text = label,
                         selected = settings.reminderAlertMode == modeId,
                         accentColor = accentColor,
+                        leadingIcon = { tint ->
+                            Icon(
+                                imageVector = modeIcon,
+                                contentDescription = null,
+                                tint = tint,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        },
                         onClick = {
                             onUpdateSettings { it.copy(reminderAlertMode = modeId) }
                             if (modeId == "vibration_only") {
@@ -236,9 +265,17 @@ fun CustomReminderSoundSettingsCard(
                 AudioHelper.RINGTONE_PRESETS.forEach { preset ->
                     val selected = !settings.useDefaultPhoneRingtone && settings.reminderRingtoneStyle == preset.id
                     GlassPillButton(
-                        text = "🎵 ${if (isKhmer) preset.labelKm else preset.labelEn}",
+                        text = if (isKhmer) preset.labelKm else preset.labelEn,
                         selected = selected,
                         accentColor = accentColor,
+                        leadingIcon = { tint ->
+                            Icon(
+                                imageVector = Icons.Rounded.MusicNote,
+                                contentDescription = null,
+                                tint = tint,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        },
                         onClick = {
                             onUpdateSettings {
                                 it.copy(
@@ -259,9 +296,17 @@ fun CustomReminderSoundSettingsCard(
                 }
                 if (settings.customSoundName.isNotBlank()) {
                     GlassPillButton(
-                        text = "📂 ${settings.customSoundName} (${settings.customSoundSource})",
+                        text = "${settings.customSoundName} (${settings.customSoundSource})",
                         selected = !settings.useDefaultPhoneRingtone && settings.reminderRingtoneStyle == "custom_imported",
                         accentColor = accentColor,
+                        leadingIcon = { tint ->
+                            Icon(
+                                imageVector = Icons.Rounded.AudioFile,
+                                contentDescription = null,
+                                tint = tint,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        },
                         onClick = {
                             onUpdateSettings {
                                 it.copy(
@@ -295,8 +340,16 @@ fun CustomReminderSoundSettingsCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 GlassPillButton(
-                    text = "📱 Import from Device",
+                    text = "Import from Device",
                     accentColor = accentColor,
+                    leadingIcon = { tint ->
+                        Icon(
+                            imageVector = Icons.Rounded.PhoneAndroid,
+                            contentDescription = null,
+                            tint = tint,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
                     onClick = {
                         pendingImportSource = "Device"
                         try {
@@ -307,8 +360,16 @@ fun CustomReminderSoundSettingsCard(
                     modifier = Modifier.testTag("import_sound_device_button")
                 )
                 GlassPillButton(
-                    text = "☁️ Import from Google Drive",
+                    text = "Import from Google Drive",
                     accentColor = accentColor,
+                    leadingIcon = { tint ->
+                        Icon(
+                            imageVector = Icons.Rounded.CloudDownload,
+                            contentDescription = null,
+                            tint = tint,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
                     onClick = {
                         pendingImportSource = "Google Drive"
                         try {
@@ -319,8 +380,16 @@ fun CustomReminderSoundSettingsCard(
                     modifier = Modifier.testTag("import_sound_drive_button")
                 )
                 GlassPillButton(
-                    text = "📁 Import from Files",
+                    text = "Import from Files",
                     accentColor = accentColor,
+                    leadingIcon = { tint ->
+                        Icon(
+                            imageVector = Icons.Rounded.FolderOpen,
+                            contentDescription = null,
+                            tint = tint,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
                     onClick = {
                         pendingImportSource = "Files"
                         try {
@@ -472,9 +541,17 @@ fun CustomReminderSoundSettingsCard(
             ) {
                 AudioHelper.VIBRATION_PRESETS.forEach { vib ->
                     GlassPillButton(
-                        text = "📳 ${if (isKhmer) vib.labelKm else vib.labelEn}",
+                        text = if (isKhmer) vib.labelKm else vib.labelEn,
                         selected = settings.customVibrationPattern == vib.id,
                         accentColor = accentColor,
+                        leadingIcon = { tint ->
+                            Icon(
+                                imageVector = Icons.Rounded.Vibration,
+                                contentDescription = null,
+                                tint = tint,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        },
                         onClick = {
                             onUpdateSettings { it.copy(customVibrationPattern = vib.id) }
                             AudioHelper.triggerVibrationPattern(context, vib.id)
@@ -640,9 +717,17 @@ fun CustomReminderSoundSettingsCard(
                 )
 
                 GlassPillButton(
-                    text = "🔔 Test Reminder Sound",
+                    text = "Test Reminder Sound",
                     selected = true,
                     accentColor = accentColor,
+                    leadingIcon = { tint ->
+                        Icon(
+                            imageVector = Icons.Rounded.NotificationsActive,
+                            contentDescription = null,
+                            tint = tint,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
                     onClick = {
                         scope.launch {
                             AudioHelper.playReminderPreviewOrAlert(context, settings)

@@ -4,7 +4,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -34,9 +36,11 @@ fun GlassPillButton(
     accentColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    selected: Boolean = false
+    selected: Boolean = false,
+    leadingIcon: (@Composable (Color) -> Unit)? = null
 ) {
     val tokens = LocalGlassTokens.current
+    val contentColor = if (selected) Color.White else tokens.textPrimary
     val bgBrush = if (selected) {
         Brush.horizontalGradient(
             listOf(accentColor, accentColor.copy(alpha = 0.78f))
@@ -59,12 +63,20 @@ fun GlassPillButton(
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            color = if (selected) Color.White else tokens.textPrimary,
-            fontSize = 12.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            if (leadingIcon != null) {
+                leadingIcon(contentColor)
+            }
+            Text(
+                text = text,
+                color = contentColor,
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            )
+        }
     }
 }
 

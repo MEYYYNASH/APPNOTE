@@ -8,15 +8,13 @@
     android:paddingVertical="5dp"
     android:paddingHorizontal="4dp">
 
-    <TextView
+    <ImageView
         android:id="@+id/widget_item_checkbox"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:gravity="center"
-        android:text="○"
-        android:textColor="#A78BFA"
-        android:textSize="14sp"
-        android:textStyle="bold" />
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:contentDescription="@null"
+        android:padding="1dp"
+        android:src="@drawable/ic_widget_circle" />
 
     <TextView
         android:id="@+id/widget_item_text"

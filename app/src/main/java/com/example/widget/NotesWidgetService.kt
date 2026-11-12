@@ -82,12 +82,10 @@ class NotesWidgetRemoteViewsFactory(
 
             views.setTextViewText(R.id.widget_item_text, item.text)
             if (item.isDone) {
-                views.setTextViewText(R.id.widget_item_checkbox, "✓")
-                views.setTextColor(R.id.widget_item_checkbox, Color.parseColor("#34D399"))
+                views.setImageViewResource(R.id.widget_item_checkbox, R.drawable.ic_widget_check)
                 views.setTextColor(R.id.widget_item_text, Color.parseColor("#88FFFFFF"))
             } else {
-                views.setTextViewText(R.id.widget_item_checkbox, "○")
-                views.setTextColor(R.id.widget_item_checkbox, Color.parseColor("#A78BFA"))
+                views.setImageViewResource(R.id.widget_item_checkbox, R.drawable.ic_widget_circle)
                 views.setTextColor(R.id.widget_item_text, Color.parseColor("#FFFFFFFF"))
             }
 

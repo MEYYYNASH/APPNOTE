@@ -48,6 +48,35 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.FormatAlignLeft
+import androidx.compose.material.icons.automirrored.rounded.FormatAlignRight
+import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.Redo
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.AttachFile
+import androidx.compose.material.icons.rounded.BorderColor
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FormatAlignCenter
+import androidx.compose.material.icons.rounded.FormatListNumbered
+import androidx.compose.material.icons.rounded.FormatQuote
+import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.PictureAsPdf
+import androidx.compose.material.icons.rounded.RocketLaunch
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.TableChart
+import androidx.compose.material.icons.rounded.VideoFile
+import androidx.compose.material.icons.rounded.ViewAgenda
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,6 +95,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -126,41 +156,46 @@ private data class NoteTemplateOption(
     val subtitle: String,
     val defaultTitle: String,
     val defaultBody: String,
-    val folder: String
+    val folder: String,
+    val icon: ImageVector
 )
 
 private val NOTE_TEMPLATES = listOf(
     NoteTemplateOption(
         id = "meeting",
-        title = "📅 Meeting Notes",
+        title = "Meeting Notes",
         subtitle = "Agenda, attendees, decisions & action items",
         defaultTitle = "Meeting Notes",
         defaultBody = "# Meeting Notes\n\n**Date:** Today\n**Attendees:** Team\n\n## Agenda\n1. Project milestone review\n2. Upcoming deliverables\n\n## Action Items\n- [ ] Follow up on design specs\n- [ ] Schedule QA review",
-        folder = "Work"
+        folder = "Work",
+        icon = Icons.Rounded.Event
     ),
     NoteTemplateOption(
         id = "project",
-        title = "🚀 Project Specification",
+        title = "Project Specification",
         subtitle = "Goals, architecture, milestones & table",
         defaultTitle = "Project Ideas",
-        defaultBody = "# Project Specification\n\n> Build a modern note app with rich formatting and offline sync.\n\n## Core Features\n- Rich Markdown & Tables\n- Multi-page Document Scanner\n- Custom Reminder Sounds\n\n| Milestone | Owner | Status |\n| --- | --- | --- |\n| UI Design | Design | Done |\n| Release v1.1.19 | Eng | Active |",
-        folder = "Projects"
+        defaultBody = "# Project Specification\n\n> Build a modern note app with rich formatting and offline sync.\n\n## Core Features\n- Rich Markdown & Tables\n- Multi-page Document Scanner\n- Custom Reminder Sounds\n\n| Milestone | Owner | Status |\n| --- | --- | --- |\n| UI Design | Design | Done |\n| Release v1.1.20 | Eng | Active |",
+        folder = "Projects",
+        icon = Icons.Rounded.RocketLaunch
     ),
     NoteTemplateOption(
         id = "journal",
-        title = "💜 Daily Journal",
+        title = "Daily Journal",
         subtitle = "Gratitude, highlights & daily reflection",
         defaultTitle = "Daily Journal",
-        defaultBody = "# Daily Reflection ✨\n\n## 3 Things I'm Grateful For\n1. Productive morning session\n2. Helpful team feedback\n3. Clear priorities\n\n## Today's Highlight\n==Focused 100% on shipping quality features.==",
-        folder = "Journal"
+        defaultBody = "# Daily Reflection\n\n## 3 Things I'm Grateful For\n1. Productive morning session\n2. Helpful team feedback\n3. Clear priorities\n\n## Today's Highlight\n==Focused 100% on shipping quality features.==",
+        folder = "Journal",
+        icon = Icons.Rounded.Favorite
     ),
     NoteTemplateOption(
         id = "code",
-        title = "💻 Technical Snippet",
+        title = "Technical Snippet",
         subtitle = "Code block, architecture notes & links",
         defaultTitle = "Code & Architecture Note",
-        defaultBody = "# Technical Note\n\n```kotlin\nfun verifyRelease(version: String): Boolean {\n    return version == \"1.1.19\"\n}\n```\n\nReference: [GitHub Repository](https://github.com/MEYYYNASH/APPNOTE)",
-        folder = "Projects"
+        defaultBody = "# Technical Note\n\n```kotlin\nfun verifyRelease(version: String): Boolean {\n    return version == \"1.1.20\"\n}\n```\n\nReference: [GitHub Repository](https://github.com/MEYYYNASH/APPNOTE)",
+        folder = "Projects",
+        icon = Icons.Rounded.Code
     )
 )
 
@@ -439,7 +474,9 @@ fun NoteEditorPane(
 
                     // Undo Button
                     SmallTextChipButton(
-                        label = "↶",
+                        label = "",
+                        icon = Icons.AutoMirrored.Rounded.Undo,
+                        contentDesc = "Undo",
                         enabled = undoStack.isNotEmpty(),
                         testTag = "editor_undo_button",
                         onClick = {
@@ -453,7 +490,9 @@ fun NoteEditorPane(
 
                     // Redo Button
                     SmallTextChipButton(
-                        label = "↷",
+                        label = "",
+                        icon = Icons.AutoMirrored.Rounded.Redo,
+                        contentDesc = "Redo",
                         enabled = redoStack.isNotEmpty(),
                         testTag = "editor_redo_button",
                         onClick = {
@@ -467,7 +506,8 @@ fun NoteEditorPane(
 
                     // Reading Mode Toggle
                     SmallTextChipButton(
-                        label = if (isReadingMode) "📖 Reading" else "📖 Read",
+                        label = if (isReadingMode) "Reading" else "Read",
+                        icon = Icons.AutoMirrored.Rounded.MenuBook,
                         active = isReadingMode,
                         testTag = "editor_reading_mode_button",
                         onClick = { isReadingMode = !isReadingMode }
@@ -475,7 +515,8 @@ fun NoteEditorPane(
 
                     // Full-Screen Mode Toggle
                     SmallTextChipButton(
-                        label = if (isFullScreenEditor) "⤡ Exit Full" else "⤢ Full",
+                        label = if (isFullScreenEditor) "Exit Full" else "Full",
+                        icon = if (isFullScreenEditor) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
                         active = isFullScreenEditor,
                         testTag = "editor_fullscreen_button",
                         onClick = { isFullScreenEditor = !isFullScreenEditor }
@@ -483,14 +524,16 @@ fun NoteEditorPane(
 
                     // Note Templates Button
                     SmallTextChipButton(
-                        label = "📋 Templates",
+                        label = "Templates",
+                        icon = Icons.Rounded.ViewAgenda,
                         testTag = "editor_templates_button",
                         onClick = { showTemplatesDialog = true }
                     )
 
                     // Favorite Star Toggle
                     SmallTextChipButton(
-                        label = if (note.isFavorite) "★ Fav" else "☆ Fav",
+                        label = "Fav",
+                        icon = if (note.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                         active = note.isFavorite,
                         testTag = "editor_favorite_button",
                         onClick = onToggleFavorite
@@ -565,28 +608,28 @@ fun NoteEditorPane(
                         FormatChip("B", "format_bold") { insertOrWrapMarkup("**", "**", "bold") }
                         FormatChip("I", "format_italic") { insertOrWrapMarkup("*", "*", "italic") }
                         FormatChip("U", "format_underline") { insertOrWrapMarkup("<u>", "</u>", "underlined") }
-                        FormatChip("S̶", "format_strikethrough") { insertOrWrapMarkup("~~", "~~", "strikethrough") }
+                        FormatChip("S", "format_strikethrough") { insertOrWrapMarkup("~~", "~~", "strikethrough") }
                         FormatChip("H1", "format_h1") { insertOrWrapMarkup("# ", "", "Heading 1") }
                         FormatChip("H2", "format_h2") { insertOrWrapMarkup("## ", "", "Heading 2") }
                         FormatChip("H3", "format_h3") { insertOrWrapMarkup("### ", "", "Heading 3") }
-                        FormatChip("🖍 Highlight", "format_highlight") { insertOrWrapMarkup("==", "==", "highlighted text") }
-                        FormatChip("• List", "format_bullet_list") { insertOrWrapMarkup("- ", "", "List item") }
-                        FormatChip("1. List", "format_numbered_list") { insertOrWrapMarkup("1. ", "", "Numbered item") }
-                        FormatChip("❝ Quote", "format_blockquote") { insertOrWrapMarkup("> ", "", "Important quote") }
-                        FormatChip("{ } Code", "format_code_block") {
+                        FormatChip("Highlight", "format_highlight", Icons.Rounded.BorderColor) { insertOrWrapMarkup("==", "==", "highlighted text") }
+                        FormatChip("List", "format_bullet_list", Icons.AutoMirrored.Rounded.FormatListBulleted) { insertOrWrapMarkup("- ", "", "List item") }
+                        FormatChip("1. List", "format_numbered_list", Icons.Rounded.FormatListNumbered) { insertOrWrapMarkup("1. ", "", "Numbered item") }
+                        FormatChip("Quote", "format_blockquote", Icons.Rounded.FormatQuote) { insertOrWrapMarkup("> ", "", "Important quote") }
+                        FormatChip("Code", "format_code_block", Icons.Rounded.Code) {
                             insertOrWrapMarkup("```\n", "\n```", "// code snippet")
                         }
-                        FormatChip("⊞ Table", "format_table") {
+                        FormatChip("Table", "format_table", Icons.Rounded.TableChart) {
                             insertOrWrapMarkup(
                                 "| Column 1 | Column 2 |\n| --- | --- |\n| ",
                                 " | Value 2 |",
                                 "Value 1"
                             )
                         }
-                        FormatChip("🔗 Link", "format_link") {
+                        FormatChip("Link", "format_link", Icons.Rounded.Link) {
                             insertOrWrapMarkup("[", "](https://github.com/MEYYYNASH/APPNOTE)", "Link title")
                         }
-                        FormatChip("Aa ${editorFontSizeSp.toInt()}sp", "format_font_size") {
+                        FormatChip("${editorFontSizeSp.toInt()}sp", "format_font_size", Icons.Rounded.FormatSize) {
                             editorFontSizeSp = when (editorFontSizeSp.toInt()) {
                                 14 -> 16f
                                 16 -> 19f
@@ -594,16 +637,21 @@ fun NoteEditorPane(
                                 else -> 14f
                             }
                         }
-                        FormatChip("🎨 Color", "format_font_color") {
+                        FormatChip("Color", "format_font_color", Icons.Rounded.Palette) {
                             editorFontColorIndex = (editorFontColorIndex + 1) % editorColorPalette.size
                         }
                         FormatChip(
                             label = when (editorTextAlign) {
-                                TextAlign.Center -> "≣ Center"
-                                TextAlign.End -> "≣ Right"
-                                else -> "≣ Left"
+                                TextAlign.Center -> "Center"
+                                TextAlign.End -> "Right"
+                                else -> "Left"
                             },
-                            testTag = "format_text_align"
+                            testTag = "format_text_align",
+                            icon = when (editorTextAlign) {
+                                TextAlign.Center -> Icons.Rounded.FormatAlignCenter
+                                TextAlign.End -> Icons.AutoMirrored.Rounded.FormatAlignRight
+                                else -> Icons.AutoMirrored.Rounded.FormatAlignLeft
+                            }
                         ) {
                             editorTextAlign = when (editorTextAlign) {
                                 TextAlign.Start -> TextAlign.Center
@@ -722,7 +770,7 @@ fun NoteEditorPane(
                                         tint = tokens.accentStart,
                                         size = 14.dp
                                     )
-                                    val soundInfo = if (note.reminderSoundStyle.isNotBlank()) " · 🎵 ${note.reminderSoundStyle}" else ""
+                                    val soundInfo = if (note.reminderSoundStyle.isNotBlank()) " · Sound: ${note.reminderSoundStyle}" else ""
                                     Text(
                                         text = "${strings.reminderTitle}: ${ReminderScheduler.formatReminderTime(note.reminderAt)}$soundInfo",
                                         style = MaterialTheme.typography.labelSmall,
@@ -1020,7 +1068,8 @@ fun NoteEditorPane(
                     )
                     // Video Attachment Pill
                     EditorTextPillBtn(
-                        label = "🎬 Video",
+                        label = "Video",
+                        icon = Icons.Rounded.VideoFile,
                         testTag = "attach_video_button",
                         onClick = {
                             pendingDocumentType = AttachmentType.VIDEO
@@ -1034,7 +1083,8 @@ fun NoteEditorPane(
                     )
                     // PDF Attachment Pill
                     EditorTextPillBtn(
-                        label = "📄 PDF",
+                        label = "PDF",
+                        icon = Icons.Rounded.PictureAsPdf,
                         testTag = "attach_pdf_button",
                         onClick = {
                             pendingDocumentType = AttachmentType.PDF
@@ -1048,7 +1098,8 @@ fun NoteEditorPane(
                     )
                     // File Attachment Pill
                     EditorTextPillBtn(
-                        label = "📎 File",
+                        label = "File",
+                        icon = Icons.Rounded.AttachFile,
                         testTag = "attach_file_button",
                         onClick = {
                             pendingDocumentType = AttachmentType.FILE
@@ -1217,7 +1268,7 @@ fun NoteEditorPane(
                         }
 
                         NOTE_TEMPLATES.forEach { tpl ->
-                            Column(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(14.dp))
@@ -1233,19 +1284,37 @@ fun NoteEditorPane(
                                         onShowToast("Applied ${tpl.title}")
                                     }
                                     .padding(12.dp)
-                                    .testTag("template_option_${tpl.id}")
+                                    .testTag("template_option_${tpl.id}"),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Text(
-                                    text = tpl.title,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = tokens.textPrimary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = tpl.subtitle,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = tokens.textSecondary
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(tokens.accentStart.copy(alpha = 0.16f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = tpl.icon,
+                                        contentDescription = tpl.title,
+                                        tint = tokens.accentStart,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = tpl.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = tokens.textPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = tpl.subtitle,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = tokens.textSecondary
+                                    )
+                                }
                             }
                         }
 
@@ -1277,9 +1346,12 @@ private fun SmallTextChipButton(
     testTag: String,
     enabled: Boolean = true,
     active: Boolean = false,
+    icon: ImageVector? = null,
+    contentDesc: String? = null,
     onClick: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
+    val contentTint = if (!enabled) tokens.textSecondary.copy(alpha = 0.4f) else tokens.textPrimary
     Box(
         modifier = Modifier
             .testTag(testTag)
@@ -1294,12 +1366,27 @@ private fun SmallTextChipButton(
             .padding(horizontal = 10.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (!enabled) tokens.textSecondary.copy(alpha = 0.4f) else tokens.textPrimary,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDesc ?: label.ifBlank { testTag },
+                    tint = contentTint,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+            if (label.isNotEmpty()) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = contentTint,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 
@@ -1307,6 +1394,7 @@ private fun SmallTextChipButton(
 private fun FormatChip(
     label: String,
     testTag: String,
+    icon: ImageVector? = null,
     onClick: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
@@ -1320,12 +1408,25 @@ private fun FormatChip(
             .padding(horizontal = 10.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = tokens.textPrimary,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = tokens.textPrimary,
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = tokens.textPrimary,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -1357,6 +1458,7 @@ private fun EditorCapsuleIconBtn(
 @Composable
 private fun EditorTextPillBtn(
     label: String,
+    icon: ImageVector,
     testTag: String,
     onClick: () -> Unit
 ) {
@@ -1369,12 +1471,23 @@ private fun EditorTextPillBtn(
             .padding(horizontal = 9.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = 11.5.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(13.dp)
+            )
+            Text(
+                text = label,
+                color = Color.White,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
@@ -1386,9 +1499,9 @@ private fun DocumentFileAttachmentCard(
 ) {
     val tokens = LocalGlassTokens.current
     val badgeIcon = when (attachment.type) {
-        AttachmentType.VIDEO -> "🎬"
-        AttachmentType.PDF -> "📄"
-        else -> "📎"
+        AttachmentType.VIDEO -> Icons.Rounded.VideoFile
+        AttachmentType.PDF -> Icons.Rounded.PictureAsPdf
+        else -> Icons.Rounded.Description
     }
     Row(
         modifier = Modifier
@@ -1407,7 +1520,20 @@ private fun DocumentFileAttachmentCard(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.weight(1f)
         ) {
-            Text(text = badgeIcon, fontSize = 20.sp)
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(tokens.accentStart.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = badgeIcon,
+                    contentDescription = attachment.type.name,
+                    tint = tokens.accentStart,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
             Column {
                 Text(
                     text = attachment.name,

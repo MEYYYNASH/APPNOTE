@@ -36,11 +36,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -156,9 +159,9 @@ fun SettingsScreen(
     var speedTestResult by remember { mutableStateOf<SpeedTestResult?>(null) }
     var showReleaseNotesDialog by remember { mutableStateOf(false) }
     var showPublishReleaseDialog by remember { mutableStateOf(false) }
-    var publishTagInput by remember { mutableStateOf("v1.1.19") }
+    var publishTagInput by remember { mutableStateOf("v1.1.20") }
     var publishNotesInput by remember {
-        mutableStateOf("APPNOTE v1.1.19: Real Jetpack Glance Home Screen Widgets Studio (Small/Medium/Large, live customization, Room/DataStore/WorkManager sync, alarm & boot recovery), Clean Uncluttered Home UI, Folders Manager, Document Scanner (OCR & PDF), and Custom Reminder Sounds.")
+        mutableStateOf("APPNOTE v1.1.20: Clean Vector Icon Logo UI (zero emojis), Jetpack Glance Home Screen Widgets Studio (Small/Medium/Large, live customization, Room/DataStore/WorkManager sync, alarm & boot recovery), Folders Manager, Document Scanner (OCR & PDF), and Custom Reminder Sounds.")
     }
     var publishTokenInput by remember(settings.githubToken) { mutableStateOf(settings.githubToken) }
     var isPublishingRelease by remember { mutableStateOf(false) }
@@ -1604,7 +1607,7 @@ fun SettingsScreen(
                         )
                     }
 
-                    val normalizedTag = GitHubSyncHelper.sanitizeGitTag(publishTagInput, "v1.1.19")
+                    val normalizedTag = GitHubSyncHelper.sanitizeGitTag(publishTagInput, "v1.1.20")
 
                     Text(
                         text = "Target: ${GitHubSyncHelper.OFFICIAL_REPO_SLUG}/releases • Valid Tag: $normalizedTag",
@@ -1619,7 +1622,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        listOf("v1.1.19", "v1.2.0", "v1.2.1").forEach { presetTag ->
+                        listOf("v1.1.20", "v1.2.0", "v1.2.1").forEach { presetTag ->
                             val isSelectedTag = normalizedTag.equals(presetTag, ignoreCase = true)
                             Box(
                                 modifier = Modifier
@@ -1831,11 +1834,22 @@ private fun SettingSelectRow(
                         .clickable { expanded = true }
                         .padding(horizontal = 12.dp, vertical = 7.dp)
                 ) {
-                    Text(
-                        text = "$currentValue ▾",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                        color = tokens.textPrimary
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = currentValue,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                            color = tokens.textPrimary
+                        )
+                        Icon(
+                            imageVector = Icons.Rounded.ArrowDropDown,
+                            contentDescription = null,
+                            tint = tokens.textSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
 
                 DropdownMenu(

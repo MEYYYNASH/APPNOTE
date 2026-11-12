@@ -242,9 +242,11 @@ class NotesAppWidgetProvider : AppWidgetProvider() {
         val upcoming = all.filter { it.reminderAt != null && it.reminderAt > now }.minByOrNull { it.reminderAt!! }
         if (upcoming != null && upcoming.reminderAt != null) {
             val fmt = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(upcoming.reminderAt))
-            views.setTextViewText(R.id.widget_reminder_badge, "⏰ $fmt")
+            views.setTextViewText(R.id.widget_reminder_badge, fmt)
+            views.setViewVisibility(R.id.widget_reminder_icon, View.VISIBLE)
             views.setViewVisibility(R.id.widget_reminder_badge, View.VISIBLE)
         } else {
+            views.setViewVisibility(R.id.widget_reminder_icon, View.GONE)
             views.setViewVisibility(R.id.widget_reminder_badge, View.GONE)
         }
 
