@@ -54,7 +54,9 @@ enum class LineIconType {
     ROTATE,
     FONT,
     CLOUD_UPLOAD,
-    VOLUME
+    VOLUME,
+    SPEEDOMETER,
+    TIMER
 }
 
 @Composable
@@ -558,6 +560,36 @@ fun LineIcon(
                     style = stroke
                 )
             }
+            LineIconType.SPEEDOMETER -> {
+                // Outer speedometer gauge arc (from bottom-left to bottom-right)
+                drawArc(
+                    color = tint,
+                    startAngle = 135f,
+                    sweepAngle = 270f,
+                    useCenter = false,
+                    topLeft = pt(3.5f, 3.5f),
+                    size = Size(17f * sx, 17f * sy),
+                    style = stroke
+                )
+                // Speed indicator needle pointing high-speed towards upper-right
+                drawLine(tint, pt(12f, 13f), pt(16.5f, 8.5f), stroke.width * 1.15f, StrokeCap.Round)
+                // Center pivot dot
+                drawCircle(tint, radius = 2.2f * sx, center = pt(12f, 13f))
+                // Bottom indicator tick marks
+                drawLine(tint, pt(6.5f, 16.5f), pt(8f, 15f), stroke.width * 0.8f, StrokeCap.Round)
+                drawLine(tint, pt(17.5f, 16.5f), pt(16f, 15f), stroke.width * 0.8f, StrokeCap.Round)
+            }
+            LineIconType.TIMER -> {
+                // Clock/Timer face
+                drawCircle(tint, radius = 8f * sx, center = pt(12f, 13f), style = stroke)
+                // Top stopwatch pusher
+                drawLine(tint, pt(12f, 2.5f), pt(12f, 5f), stroke.width, StrokeCap.Round)
+                drawLine(tint, pt(9.5f, 2.5f), pt(14.5f, 2.5f), stroke.width, StrokeCap.Round)
+                // Clock hands (hour & minute indicating elapsed/remaining time)
+                drawLine(tint, pt(12f, 13f), pt(12f, 8.5f), stroke.width, StrokeCap.Round)
+                drawLine(tint, pt(12f, 13f), pt(15.5f, 13f), stroke.width, StrokeCap.Round)
+            }
         }
     }
 }
+

@@ -77,6 +77,8 @@ import com.example.model.NoteType
 import com.example.model.ThemeOption
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.window.Dialog
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.fillMaxHeight
 import com.example.ui.components.AppGlassLogo
 import com.example.ui.components.GlassActionPill
 import com.example.ui.components.GlassIconButton
@@ -85,9 +87,12 @@ import com.example.ui.components.GlassPanel
 import com.example.ui.icons.LineIcon
 import com.example.ui.icons.LineIconType
 import com.example.ui.theme.LocalGlassTokens
+import com.example.util.DownloadProgressInfo
 import com.example.util.GitHubReleaseInfo
 import com.example.util.GitHubSyncHelper
+import com.example.util.SpeedTestResult
 import com.example.util.UpdateState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -132,6 +137,21 @@ fun SettingsScreen(
         )
     }
     var downloadProgressPct by remember { mutableStateOf(0) }
+    var downloadProgressInfo by remember {
+        mutableStateOf(
+            DownloadProgressInfo(
+                state = UpdateState.IDLE,
+                percentage = 0,
+                formattedSpeed = "0.0 MB/s",
+                formattedDownloaded = "0.0 MB",
+                formattedTotal = "0.0 MB",
+                formattedEta = "—"
+            )
+        )
+    }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
+    var isTestingSpeed by remember { mutableStateOf(false) }
+    var speedTestResult by remember { mutableStateOf<SpeedTestResult?>(null) }
     var showReleaseNotesDialog by remember { mutableStateOf(false) }
     var showPublishReleaseDialog by remember { mutableStateOf(false) }
     var publishTagInput by remember { mutableStateOf("v1.1.0") }
@@ -522,33 +542,245 @@ fun SettingsScreen(
                                 )
 
                                 // Primary Action 2: Download Update (downloads actual signed APK & verifies SHA-256 + cert)
-                                if (releaseInfo.hasNewUpdate ||
-                                    releaseInfo.state == UpdateState.DOWNLOADING ||
-                                    releaseInfo.state == UpdateState.VERIFYING
-                                ) {
-                                    GlassActionPill(
-                                        label = when (releaseInfo.state) {
-                                            UpdateState.DOWNLOADING -> "Downloading update... ($downloadProgressPct%)"
-                                            UpdateState.VERIFYING -> UpdateState.VERIFYING.statusTextEn
-                                            else -> if (isKm) {
-                                                "ទាញយកកំណែថ្មី (${releaseInfo.apkFileName.ifBlank { "APK" }})"
-                                            } else {
-                                                "Download Update (${releaseInfo.latestReleaseTag})"
+                                // Live Download HUD & Progress Monitor Card with MB speed and ETA
+                                if (releaseInfo.state == UpdateState.DOWNLOADING) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(tokens.fieldFill)
+                                            .border(1.dp, tokens.accentStart.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                                            .padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        // Header Row: Status & Cancel button
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                LineIcon(
+                                                    type = LineIconType.CLOUD_UPLOAD,
+                                                    tint = tokens.accentStart,
+                                                    size = 18.dp
+                                                )
+                                                Text(
+                                                    text = if (isKm) {
+                                                        "កំពុងទាញយក ${releaseInfo.latestReleaseTag}"
+                                                    } else {
+                                                        "Downloading ${releaseInfo.latestReleaseTag}"
+                                                    },
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = tokens.textPrimary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
                                             }
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(Color(0xFFEF4444).copy(alpha = 0.15f))
+                                                    .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                                    .clickable {
+                                                        downloadJob?.cancel()
+                                                        downloadJob = null
+                                                        releaseInfo = releaseInfo.copy(
+                                                            state = UpdateState.UPDATE_AVAILABLE,
+                                                            statusMessage = if (isKm) "បានបោះបង់ការទាញយក" else "Download cancelled"
+                                                        )
+                                                    }
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (isKm) "បោះបង់" else "Cancel",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFFEF4444),
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+
+                                        // Large Percentage & MB Progress Data
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.Bottom
+                                        ) {
+                                            Text(
+                                                text = "${downloadProgressInfo.percentage}%",
+                                                style = MaterialTheme.typography.titleLarge,
+                                                color = tokens.textPrimary,
+                                                fontWeight = FontWeight.ExtraBold
+                                            )
+                                            Text(
+                                                text = "${downloadProgressInfo.formattedDownloaded} / ${downloadProgressInfo.formattedTotal}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = tokens.textSecondary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+
+                                        // Animated Smooth Glass Progress Bar
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(10.dp)
+                                                .clip(RoundedCornerShape(5.dp))
+                                                .background(tokens.panelBorder.copy(alpha = 0.5f))
+                                        ) {
+                                            val animatedPct by animateFloatAsState(
+                                                targetValue = (downloadProgressInfo.percentage / 100f).coerceIn(0f, 1f),
+                                                label = "progress"
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth(animatedPct)
+                                                    .fillMaxHeight()
+                                                    .clip(RoundedCornerShape(5.dp))
+                                                    .background(
+                                                        Brush.horizontalGradient(
+                                                            listOf(
+                                                                tokens.accentStart,
+                                                                Color(0xFF06B6D4),
+                                                                tokens.accentEnd
+                                                            )
+                                                        )
+                                                    )
+                                            )
+                                        }
+
+                                        // Real-time MB Speed & Time to End (ETA) HUD Metrics
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // Speed Card (MB/s)
+                                            Row(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(tokens.panelFill)
+                                                    .border(1.dp, Color(0xFF06B6D4).copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                LineIcon(
+                                                    type = LineIconType.SPEEDOMETER,
+                                                    tint = Color(0xFF06B6D4),
+                                                    size = 20.dp
+                                                )
+                                                Column {
+                                                    Text(
+                                                        text = if (isKm) "ល្បឿន (Speed)" else "MB Speed",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = tokens.textSecondary,
+                                                        fontSize = 11.sp
+                                                    )
+                                                    Text(
+                                                        text = downloadProgressInfo.formattedSpeed,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = Color(0xFF06B6D4),
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+
+                                            // Speed Time to End (ETA)
+                                            Row(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                                    .background(tokens.panelFill)
+                                                    .border(1.dp, Color(0xFFF59E0B).copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                LineIcon(
+                                                    type = LineIconType.TIMER,
+                                                    tint = Color(0xFFF59E0B),
+                                                    size = 20.dp
+                                                )
+                                                Column {
+                                                    Text(
+                                                        text = if (isKm) "ពេលដល់ចប់" else "Time to End",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = tokens.textSecondary,
+                                                        fontSize = 11.sp
+                                                    )
+                                                    Text(
+                                                        text = downloadProgressInfo.formattedEta,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = Color(0xFFF59E0B),
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if (releaseInfo.state == UpdateState.VERIFYING) {
+                                    // Verifying State HUD
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(tokens.fieldFill)
+                                            .border(1.dp, tokens.accentStart.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                                            .padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        LineIcon(
+                                            type = LineIconType.CHECK,
+                                            tint = tokens.accentStart,
+                                            size = 20.dp
+                                        )
+                                        Column {
+                                            Text(
+                                                text = if (isKm) "កំពុងផ្ទៀងផ្ទាត់សុវត្ថិភាព APK..." else "Verifying APK Security & SHA-256...",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = tokens.textPrimary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = if (isKm) "ពិនិត្យ SHA-256 និង cryptographic signature" else "Checking package archive & signing certificate",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = tokens.textSecondary
+                                            )
+                                        }
+                                    }
+                                } else if (releaseInfo.hasNewUpdate) {
+                                    // Primary Action 2: Download Update Button
+                                    GlassActionPill(
+                                        label = if (isKm) {
+                                            "ទាញយកកំណែថ្មី (${releaseInfo.apkFileName.ifBlank { "APK" }})"
+                                        } else {
+                                            "Download Update (${releaseInfo.latestReleaseTag})"
                                         },
                                         icon = LineIconType.CLOUD_UPLOAD,
-                                        primary = releaseInfo.state == UpdateState.UPDATE_AVAILABLE,
+                                        primary = true,
                                         onClick = {
-                                            if (releaseInfo.state == UpdateState.DOWNLOADING ||
-                                                releaseInfo.state == UpdateState.VERIFYING
-                                            ) return@GlassActionPill
-
-                                            scope.launch {
+                                            downloadJob = scope.launch {
                                                 downloadProgressPct = 0
+                                                downloadProgressInfo = DownloadProgressInfo(
+                                                    state = UpdateState.DOWNLOADING,
+                                                    formattedSpeed = "0.0 MB/s",
+                                                    formattedDownloaded = "0.0 MB",
+                                                    formattedTotal = if (releaseInfo.apkSizeBytes > 0L) GitHubSyncHelper.formatBytes(releaseInfo.apkSizeBytes) else "—",
+                                                    formattedEta = "Calculating..."
+                                                )
                                                 val verifiedResult = GitHubSyncHelper.downloadAndVerifyReleaseApk(
                                                     context = context,
                                                     releaseInfo = releaseInfo,
                                                     token = settings.githubToken,
+                                                    onProgress = { progress ->
+                                                        downloadProgressInfo = progress
+                                                        downloadProgressPct = progress.percentage
+                                                    },
                                                     onStateChange = { st, pct, msg ->
                                                         downloadProgressPct = pct
                                                         releaseInfo = releaseInfo.copy(
@@ -695,7 +927,41 @@ fun SettingsScreen(
                                     )
                                 }
 
-                                // Secondary Actions Row: View Release Notes, Add to Releases, & Open GitHub Repository
+                                // Live Speed Test Result Card
+                                if (speedTestResult != null) {
+                                    val r = speedTestResult!!
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color(0xFF06B6D4).copy(alpha = 0.12f))
+                                            .border(1.dp, Color(0xFF06B6D4).copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            LineIcon(type = LineIconType.SPEEDOMETER, tint = Color(0xFF06B6D4), size = 18.dp)
+                                            Text(
+                                                text = if (isKm) "ល្បឿនតេស្ត៖ ${r.formattedSpeed} (${r.pingMs}ms)" else "CDN Speed: ${r.formattedSpeed} • ${r.pingMs}ms",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = tokens.textPrimary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                        Text(
+                                            text = r.quality,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF06B6D4),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                // Secondary Actions Row: View Release Notes, Speed Test, Add to Releases, & Open GitHub Repository
                                 FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -705,6 +971,26 @@ fun SettingsScreen(
                                         label = if (isKm) "មើលកំណត់ត្រាកំណែថ្មី" else "View Release Notes",
                                         testTag = "setting_view_release_notes_button",
                                         onClick = { showReleaseNotesDialog = true }
+                                    )
+                                    SettingsActionBtn(
+                                        label = if (isTestingSpeed) {
+                                            if (isKm) "កំពុងតេស្តល្បឿន..." else "Testing speed..."
+                                        } else if (isKm) {
+                                            "តេស្តល្បឿន (MB/s)"
+                                        } else {
+                                            "Test Download Speed"
+                                        },
+                                        testTag = "setting_speed_test_button",
+                                        onClick = {
+                                            if (isTestingSpeed) return@SettingsActionBtn
+                                            scope.launch {
+                                                isTestingSpeed = true
+                                                val res = GitHubSyncHelper.runDownloadSpeedTest(token = settings.githubToken)
+                                                speedTestResult = res
+                                                isTestingSpeed = false
+                                                onShowToast(res.statusMessage)
+                                            }
+                                        }
                                     )
                                     if (releaseInfo.state == UpdateState.READY_TO_INSTALL ||
                                         releaseInfo.state == UpdateState.INSTALLATION_REQUESTED

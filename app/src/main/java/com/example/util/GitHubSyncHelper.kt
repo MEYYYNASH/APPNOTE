@@ -9,7 +9,9 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Base64
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -19,6 +21,7 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.Locale
 
 enum class UpdateState(val statusTextEn: String, val statusTextKm: String) {
     IDLE("Ready to check", "រួចរាល់ដើម្បីពិនិត្យ"),
@@ -31,6 +34,29 @@ enum class UpdateState(val statusTextEn: String, val statusTextKm: String) {
     INSTALLATION_REQUESTED("Update installation requested.", "បានស្នើសុំដំឡើងកំណែថ្មី។"),
     FAILED("Update failed. Try again.", "ការអាប់ដេតបរាជ័យ។ សូមព្យាយាមម្តងទៀត។")
 }
+
+data class DownloadProgressInfo(
+    val state: UpdateState = UpdateState.IDLE,
+    val bytesDownloaded: Long = 0L,
+    val totalBytes: Long = 0L,
+    val percentage: Int = 0,
+    val speedBytesPerSec: Double = 0.0,
+    val formattedSpeed: String = "0.0 MB/s",
+    val formattedDownloaded: String = "0.0 MB",
+    val formattedTotal: String = "0.0 MB",
+    val etaSeconds: Long = -1L,
+    val formattedEta: String = "—",
+    val statusMessage: String = ""
+)
+
+data class SpeedTestResult(
+    val pingMs: Long = 0L,
+    val speedBytesPerSec: Double = 0.0,
+    val formattedSpeed: String = "0.0 MB/s",
+    val statusMessage: String = "",
+    val quality: String = "Good",
+    val isSuccess: Boolean = true
+)
 
 data class InstalledAppVersionInfo(
     val packageName: String,
@@ -714,13 +740,15 @@ object GitHubSyncHelper {
      * checksum, verifies that the APK archive is valid, checks that its versionCode is newer than
      * the installed versionCode, and verifies that the APK signing certificate matches the installed app.
      * Follows HTTP cross-domain redirects manually to prevent 302 errors when redirected to storage blobs.
+     * Emits real-time DownloadProgressInfo with MB speed, downloaded MB / total MB, and ETA remaining time.
      */
     @Suppress("DEPRECATION")
     suspend fun downloadAndVerifyReleaseApk(
         context: Context,
         releaseInfo: GitHubReleaseInfo,
         token: String = "",
-        onStateChange: (UpdateState, Int, String) -> Unit
+        onProgress: (DownloadProgressInfo) -> Unit = {},
+        onStateChange: (UpdateState, Int, String) -> Unit = { _, _, _ -> }
     ): GitHubReleaseInfo = withContext(Dispatchers.IO) {
         val installed = getInstalledAppInfo(context)
         val cleanToken = token.trim()
@@ -744,6 +772,20 @@ object GitHubSyncHelper {
         val targetApkFile = File(updatesDir, "APPNOTE-$cleanTag.apk")
 
         try {
+            val initialInfo = DownloadProgressInfo(
+                state = UpdateState.DOWNLOADING,
+                bytesDownloaded = 0L,
+                totalBytes = releaseInfo.apkSizeBytes,
+                percentage = 0,
+                speedBytesPerSec = 0.0,
+                formattedSpeed = "0.0 MB/s",
+                formattedDownloaded = "0.0 MB",
+                formattedTotal = if (releaseInfo.apkSizeBytes > 0L) formatBytes(releaseInfo.apkSizeBytes) else "—",
+                etaSeconds = -1L,
+                formattedEta = "Calculating...",
+                statusMessage = UpdateState.DOWNLOADING.statusTextEn
+            )
+            onProgress(initialInfo)
             onStateChange(UpdateState.DOWNLOADING, 0, UpdateState.DOWNLOADING.statusTextEn)
 
             var activeConn: HttpURLConnection? = null
@@ -800,17 +842,72 @@ object GitHubSyncHelper {
             val totalBytes = conn.contentLengthLong.takeIf { it > 0L } ?: releaseInfo.apkSizeBytes
             val digest = MessageDigest.getInstance("SHA-256")
 
+            val startTimeNs = System.nanoTime()
+            var lastSampleTimeNs = startTimeNs
+            var lastSampleBytes = 0L
+            var smoothedSpeed = 0.0 // bytes per second
+            var lastUiUpdateTimeMs = 0L
+
             conn.inputStream.use { input ->
                 FileOutputStream(targetApkFile).use { output ->
-                    val buffer = ByteArray(8192)
+                    val buffer = ByteArray(16384)
                     var downloaded = 0L
                     var read: Int
                     while (input.read(buffer).also { read = it } != -1) {
+                        coroutineContext.ensureActive()
+
                         output.write(buffer, 0, read)
                         digest.update(buffer, 0, read)
                         downloaded += read
-                        if (totalBytes > 0L) {
-                            val pct = ((downloaded * 100L) / totalBytes).toInt().coerceIn(0, 100)
+
+                        val nowNs = System.nanoTime()
+                        val nowMs = System.currentTimeMillis()
+                        val elapsedSinceSampleSec = (nowNs - lastSampleTimeNs) / 1_000_000_000.0
+
+                        if (elapsedSinceSampleSec >= 0.20) {
+                            val bytesInWindow = downloaded - lastSampleBytes
+                            val instantSpeed = bytesInWindow / elapsedSinceSampleSec
+                            smoothedSpeed = if (smoothedSpeed <= 0.0) {
+                                instantSpeed
+                            } else {
+                                (0.60 * instantSpeed) + (0.40 * smoothedSpeed)
+                            }
+                            lastSampleTimeNs = nowNs
+                            lastSampleBytes = downloaded
+                        }
+
+                        // Update progress at most every 60ms to keep animations 60 FPS
+                        if (nowMs - lastUiUpdateTimeMs >= 60L || (totalBytes > 0L && downloaded >= totalBytes)) {
+                            lastUiUpdateTimeMs = nowMs
+                            val pct = if (totalBytes > 0L) {
+                                ((downloaded * 100L) / totalBytes).toInt().coerceIn(0, 100)
+                            } else 0
+
+                            val formattedDl = formatBytes(downloaded)
+                            val formattedTot = if (totalBytes > 0L) formatBytes(totalBytes) else "—"
+                            val currentSpeedStr = formatSpeed(smoothedSpeed)
+
+                            val etaSeconds = if (totalBytes > downloaded && smoothedSpeed > 1024.0) {
+                                val remainingBytes = totalBytes - downloaded
+                                (remainingBytes / smoothedSpeed).toLong().coerceAtLeast(0L)
+                            } else -1L
+
+                            val etaStr = if (etaSeconds >= 0L) formatEta(etaSeconds) else if (totalBytes > 0L) "Calculating..." else "—"
+
+                            val progressInfo = DownloadProgressInfo(
+                                state = UpdateState.DOWNLOADING,
+                                bytesDownloaded = downloaded,
+                                totalBytes = totalBytes,
+                                percentage = pct,
+                                speedBytesPerSec = smoothedSpeed,
+                                formattedSpeed = currentSpeedStr,
+                                formattedDownloaded = formattedDl,
+                                formattedTotal = formattedTot,
+                                etaSeconds = etaSeconds,
+                                formattedEta = etaStr,
+                                statusMessage = "${UpdateState.DOWNLOADING.statusTextEn} ($pct%) • $currentSpeedStr • $etaStr"
+                            )
+                            onProgress(progressInfo)
                             onStateChange(
                                 UpdateState.DOWNLOADING,
                                 pct,
@@ -917,12 +1014,141 @@ object GitHubSyncHelper {
                 verifiedApkPath = targetApkFile.absolutePath,
                 errorDetail = ""
             )
+        } catch (ce: CancellationException) {
+            try {
+                if (targetApkFile.exists()) targetApkFile.delete()
+            } catch (_: Exception) {}
+            throw ce
         } catch (e: Exception) {
             targetApkFile.delete()
             releaseInfo.copy(
                 state = UpdateState.FAILED,
                 statusMessage = UpdateState.FAILED.statusTextEn,
                 errorDetail = e.localizedMessage ?: "APK download or verification error"
+            )
+        }
+    }
+
+    /**
+     * Formats bytes count into human-readable MB (e.g. "14.2 MB").
+     */
+    fun formatBytes(bytes: Long): String {
+        val mb = bytes / (1024.0 * 1024.0)
+        return String.format(Locale.US, "%.1f MB", mb)
+    }
+
+    /**
+     * Formats instantaneous download throughput into human-readable MB/s or KB/s (e.g. "3.45 MB/s").
+     */
+    fun formatSpeed(bytesPerSec: Double): String {
+        return when {
+            bytesPerSec >= 1_048_576.0 -> String.format(Locale.US, "%.2f MB/s", bytesPerSec / 1_048_576.0)
+            bytesPerSec >= 1024.0 -> String.format(Locale.US, "%.0f KB/s", bytesPerSec / 1024.0)
+            bytesPerSec > 0.0 -> String.format(Locale.US, "%.0f B/s", bytesPerSec)
+            else -> "0.0 MB/s"
+        }
+    }
+
+    /**
+     * Formats remaining time (ETA) into clean, human-readable strings (e.g. "14s left", "1m 20s left").
+     */
+    fun formatEta(seconds: Long, isKhmer: Boolean = false): String {
+        if (seconds < 0L) return if (isKhmer) "កំពុងគណនា..." else "Calculating..."
+        return when {
+            seconds == 0L -> if (isKhmer) "រួចរាល់" else "Done"
+            seconds < 60L -> if (isKhmer) "$seconds វិ" else "${seconds}s left"
+            seconds < 3600L -> {
+                val m = seconds / 60L
+                val s = seconds % 60L
+                if (isKhmer) "$m ន $s វិ" else "${m}m ${s}s left"
+            }
+            else -> {
+                val h = seconds / 3600L
+                val m = (seconds % 3600L) / 60L
+                if (isKhmer) "$h ម៉ោង $m ន" else "${h}h ${m}m left"
+            }
+        }
+    }
+
+    /**
+     * Tests real-world download speed and latency against GitHub release CDN / releases endpoint.
+     * Reports ping in ms and throughput in MB/s.
+     */
+    suspend fun runDownloadSpeedTest(
+        token: String = "",
+        onProgress: (Double, String) -> Unit = { _, _ -> }
+    ): SpeedTestResult = withContext(Dispatchers.IO) {
+        val pingStart = System.currentTimeMillis()
+        val cleanToken = token.trim()
+        val testUrl = "$OFFICIAL_REPO_URL/releases.atom"
+        try {
+            val url = URL(testUrl)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
+                setRequestProperty("User-Agent", "APPNOTE-Android-SpeedTest")
+                if (cleanToken.isNotBlank()) {
+                    setRequestProperty("Authorization", "Bearer $cleanToken")
+                }
+            }
+            val pingMs = (System.currentTimeMillis() - pingStart).coerceAtLeast(1L)
+            val code = conn.responseCode
+            if (code !in 200..399) {
+                conn.disconnect()
+                return@withContext SpeedTestResult(
+                    pingMs = pingMs,
+                    speedBytesPerSec = 0.0,
+                    formattedSpeed = "0.0 MB/s",
+                    statusMessage = "HTTP $code from GitHub CDN",
+                    quality = "Unreachable",
+                    isSuccess = false
+                )
+            }
+
+            var totalBytes = 0L
+            val testStart = System.nanoTime()
+            conn.inputStream.use { stream ->
+                val buf = ByteArray(8192)
+                var r: Int
+                while (stream.read(buf).also { r = it } != -1) {
+                    coroutineContext.ensureActive()
+                    totalBytes += r
+                    val elapsedSec = (System.nanoTime() - testStart) / 1_000_000_000.0
+                    if (elapsedSec > 0.05) {
+                        val currentSpeed = totalBytes / elapsedSec
+                        onProgress(currentSpeed, formatSpeed(currentSpeed))
+                    }
+                }
+            }
+            conn.disconnect()
+
+            val elapsedSec = ((System.nanoTime() - testStart) / 1_000_000_000.0).coerceAtLeast(0.001)
+            val finalSpeed = totalBytes / elapsedSec
+            val quality = when {
+                finalSpeed >= 3_000_000.0 -> "Ultra Fast"
+                finalSpeed >= 1_000_000.0 -> "Fast"
+                finalSpeed >= 400_000.0 -> "Good"
+                else -> "Standard"
+            }
+            SpeedTestResult(
+                pingMs = pingMs,
+                speedBytesPerSec = finalSpeed,
+                formattedSpeed = formatSpeed(finalSpeed),
+                statusMessage = "Ping: ${pingMs}ms • Speed: ${formatSpeed(finalSpeed)} ($quality)",
+                quality = quality,
+                isSuccess = true
+            )
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            SpeedTestResult(
+                pingMs = 0L,
+                speedBytesPerSec = 0.0,
+                formattedSpeed = "0.0 MB/s",
+                statusMessage = e.message ?: "Speed test failed",
+                quality = "Offline",
+                isSuccess = false
             )
         }
     }

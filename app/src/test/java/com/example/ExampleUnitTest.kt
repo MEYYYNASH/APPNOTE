@@ -72,4 +72,32 @@ class ExampleUnitTest {
         assertFalse(GitHubSyncHelper.isTrustedHttpsUrl("http://insecure-site.com/app.apk"))
         assertFalse(GitHubSyncHelper.isTrustedHttpsUrl("https://malicious-domain.com/app.apk"))
     }
+
+    @Test
+    fun `formatBytes formats bytes to MB accurately`() {
+        assertEquals("0.0 MB", GitHubSyncHelper.formatBytes(0L))
+        assertEquals("1.0 MB", GitHubSyncHelper.formatBytes(1024L * 1024L))
+        assertEquals("15.5 MB", GitHubSyncHelper.formatBytes((15.5 * 1024 * 1024).toLong()))
+        assertEquals("48.2 MB", GitHubSyncHelper.formatBytes((48.2 * 1024 * 1024).toLong()))
+    }
+
+    @Test
+    fun `formatSpeed formats throughput to MB_s and KB_s accurately`() {
+        assertEquals("0.0 MB/s", GitHubSyncHelper.formatSpeed(0.0))
+        assertEquals("512 KB/s", GitHubSyncHelper.formatSpeed(512.0 * 1024.0))
+        assertEquals("1.00 MB/s", GitHubSyncHelper.formatSpeed(1024.0 * 1024.0))
+        assertEquals("3.45 MB/s", GitHubSyncHelper.formatSpeed(3.45 * 1024.0 * 1024.0))
+        assertEquals("12.80 MB/s", GitHubSyncHelper.formatSpeed(12.80 * 1024.0 * 1024.0))
+    }
+
+    @Test
+    fun `formatEta calculates seconds and minutes to end`() {
+        assertEquals("Calculating...", GitHubSyncHelper.formatEta(-1L, isKhmer = false))
+        assertEquals("កំពុងគណនា...", GitHubSyncHelper.formatEta(-1L, isKhmer = true))
+        assertEquals("Done", GitHubSyncHelper.formatEta(0L, isKhmer = false))
+        assertEquals("15s left", GitHubSyncHelper.formatEta(15L, isKhmer = false))
+        assertEquals("15 វិ", GitHubSyncHelper.formatEta(15L, isKhmer = true))
+        assertEquals("1m 20s left", GitHubSyncHelper.formatEta(80L, isKhmer = false))
+        assertEquals("1 ន 20 វិ", GitHubSyncHelper.formatEta(80L, isKhmer = true))
+    }
 }
