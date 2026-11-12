@@ -755,7 +755,7 @@ private fun CleanGlassNoteRowCard(
 ) {
     val tokens = LocalGlassTokens.current
     val shape = RoundedCornerShape(18.dp)
-    val accentBarColor = Color(note.color.startColor)
+    val accentBarColor = note.color.startColor
     val now = System.currentTimeMillis()
     val hasActiveReminder = note.reminderAt != null && !note.reminderFired && note.reminderAt > now
 

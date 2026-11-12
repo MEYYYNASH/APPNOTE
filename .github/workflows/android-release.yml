@@ -27,16 +27,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
-      - name: Set up Gradle 8.11
-        uses: gradle/actions/setup-gradle@v3
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.11.1'
+          gradle-version: '9.3.1'
+
+      - name: Accept Android SDK Licenses & Ensure Platform 36.1
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -n 1 || true)
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+            "$SDKMANAGER" --install "platforms;android-36.1" "build-tools;36.0.0" || true
+          fi
 
       - name: Restore Official APPNOTE Signing Keystore (8b259701...)
         env:
@@ -81,18 +90,8 @@ jobs:
       - name: Build & Sign Android APK (v1.1.19 / 10119) with Official Keystore
         run: |
           touch .env .env.example
-          # Normalize AI Studio preview versions to public Google Maven versions for GitHub Actions runner
-          sed -i 's/agp = "9.1.1"/agp = "8.7.3"/g' gradle/libs.versions.toml || true
-          sed -i 's/kotlin = "2.2.10"/kotlin = "2.1.0"/g' gradle/libs.versions.toml || true
-          sed -i 's/googleDevtoolsKsp = "2.3.5"/googleDevtoolsKsp = "2.1.0-1.0.29"/g' gradle/libs.versions.toml || true
-          sed -i 's/googleServices = "4.5.0"/googleServices = "4.4.2"/g' gradle/libs.versions.toml || true
-          sed -i 's/coreKtx = "1.18.0"/coreKtx = "1.15.0"/g' gradle/libs.versions.toml || true
-          sed -i 's/firebaseBom = "34.17.0"/firebaseBom = "33.7.0"/g' gradle/libs.versions.toml || true
-          sed -i 's/compileSdk { version = release(36) { minorApiLevel = 1 } }/compileSdk = 35/g' app/build.gradle.kts || true
-          sed -i 's/targetSdk = 36/targetSdk = 35/g' app/build.gradle.kts || true
-
           mkdir -p .ci-release-artifacts
-          gradle :app:assembleDebug --no-daemon
+          gradle :app:assembleDebug --no-daemon --stacktrace
           BUILT_APK=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -n 1 || true)
           if [ -n "$BUILT_APK" ] && [ -f "$BUILT_APK" ]; then
             cp "$BUILT_APK" .ci-release-artifacts/app-release.apk
@@ -101,44 +100,9 @@ jobs:
             exit 1
           fi
 
-          # Guarantee binary AndroidManifest.xml inside app-release.apk matches computed CLEAN_VERSION and VERSION_CODE
-          TARGET_VERSION="${{ steps.version_meta.outputs.version_name }}" TARGET_CODE="${{ steps.version_meta.outputs.version_code }}" python3 - << 'PYEOF'
-          import zipfile, struct, os, shutil
-
-          apk_path = ".ci-release-artifacts/app-release.apk"
-          tmp_apk = ".ci-release-artifacts/app-release-patched.apk"
-          ver_str = os.environ.get("TARGET_VERSION", "1.1.19")
-          code_int = int(os.environ.get("TARGET_CODE", "10119"))
-          with zipfile.ZipFile(apk_path, "r") as zin:
-              manifest = zin.read("AndroidManifest.xml")
-              target_ver = ver_str.encode("utf-16le")
-              for old_v in ["1.1.14", "1.1.15", "1.1.16", "1.1.17", "1.1.18"]:
-                  if old_v != ver_str:
-                      manifest = manifest.replace(old_v.encode("utf-16le"), target_ver)
-              target_code = b"\xff\xff\xff\xff\x08\x00\x00\x10" + struct.pack("<I", code_int)
-              for old_c in [14, 15, 16, 17, 18, 19, 10114, 10115, 10116, 10117, 10118]:
-                  if old_c != code_int:
-                      old_seq = b"\xff\xff\xff\xff\x08\x00\x00\x10" + struct.pack("<I", old_c)
-                      manifest = manifest.replace(old_seq, target_code)
-
-              with zipfile.ZipFile(tmp_apk, "w") as zout:
-                  for item in zin.infolist():
-                      if item.filename.startswith("META-INF/") and (
-                          item.filename.endswith(".SF")
-                          or item.filename.endswith(".RSA")
-                          or item.filename.endswith(".DSA")
-                          or item.filename == "META-INF/MANIFEST.MF"
-                      ):
-                          continue
-                      if item.filename == "AndroidManifest.xml":
-                          zout.writestr(item, manifest)
-                      else:
-                          zout.writestr(item, zin.read(item.filename))
-          shutil.move(tmp_apk, apk_path)
-          PYEOF
-
-          # Align & Sign with V1 + V2 + V3 signatures using the official debug.keystore (8b259701...)
-          BUILD_TOOLS_DIR=$(ls -d "$ANDROID_HOME/build-tools/"* 2>/dev/null | sort -V | tail -n 1 || true)
+          # Align & Verify / Sign with V1 + V2 + V3 signatures using the official debug.keystore (8b259701...)
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          BUILD_TOOLS_DIR=$(ls -d "$SDK_ROOT/build-tools/"* 2>/dev/null | sort -V | tail -n 1 || true)
           if [ -n "$BUILD_TOOLS_DIR" ]; then
             if [ -x "$BUILD_TOOLS_DIR/zipalign" ]; then
               "$BUILD_TOOLS_DIR/zipalign" -f -p 4 .ci-release-artifacts/app-release.apk .ci-release-artifacts/app-aligned.apk && mv .ci-release-artifacts/app-aligned.apk .ci-release-artifacts/app-release.apk
@@ -161,6 +125,8 @@ jobs:
             fi
             if [ -x "$BUILD_TOOLS_DIR/aapt" ]; then
               "$BUILD_TOOLS_DIR/aapt" dump badging .ci-release-artifacts/app-release.apk | head -n 5
+            elif [ -x "$BUILD_TOOLS_DIR/aapt2" ]; then
+              "$BUILD_TOOLS_DIR/aapt2" dump badging .ci-release-artifacts/app-release.apk | head -n 5
             fi
           fi
           cp .ci-release-artifacts/app-release.apk .ci-release-artifacts/GlassNotes.apk
