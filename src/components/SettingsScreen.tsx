@@ -453,16 +453,29 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
             {/* Ready to Install / Verified Banner */}
             {isReadyToInstall && verifiedSha && (
-              <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center gap-3 text-xs text-emerald-600 dark:text-emerald-400 animate-in fade-in">
-                <ShieldCheck size={20} className="flex-none" />
-                <div className="min-w-0">
-                  <p className="font-bold">
-                    {isKm ? 'បានផ្ទៀងផ្ទាត់ និងត្រៀមរួចរាល់' : 'Verified & Ready to Install'}
-                  </p>
-                  <p className="truncate opacity-80 font-mono text-[11px]">
-                    SHA-256: {verifiedSha.slice(0, 24)}...
-                  </p>
+              <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex flex-col gap-2.5 text-xs text-emerald-600 dark:text-emerald-400 animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck size={20} className="flex-none text-emerald-500" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-sm">
+                      {isKm ? 'បានផ្ទៀងផ្ទាត់ និងត្រៀមរួចរាល់' : 'Verified & Ready to Install'}
+                    </p>
+                    <p className="truncate opacity-80 font-mono text-[11px]">
+                      SHA-256: {verifiedSha.slice(0, 32)}...
+                    </p>
+                  </div>
                 </div>
+
+                {/* Direct APK Install & Download Button */}
+                <a
+                  href="/GlassNotes.apk"
+                  download="GlassNotes.apk"
+                  onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK...' : 'Downloading GlassNotes.apk...')}
+                  className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all text-center"
+                >
+                  <Download size={16} />
+                  <span>{isKm ? 'ដំឡើងឯកសារ APK (ទាញយក GlassNotes.apk - 18 MB)' : 'Install APK (Download GlassNotes.apk - 18 MB)'}</span>
+                </a>
               </div>
             )}
 
@@ -500,7 +513,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
             )}
 
-            {/* Action Buttons: Check Update, Test Download Speed, Download Update */}
+            {/* Action Buttons: Check Update, Test Download Speed */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 onClick={handleCheckUpdate}
@@ -523,14 +536,38 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
             {/* Download & Verify Release Button */}
             {!isDownloading && (
-              <button
-                onClick={handleStartDownload}
-                disabled={isVerifying}
-                className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all"
-              >
-                <Download size={15} />
-                <span>{isKm ? 'ទាញយក និងផ្ទៀងផ្ទាត់ការអាប់ដេត (Download Update)' : 'Download & Verify Update (HUD)'}</span>
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={handleStartDownload}
+                  disabled={isVerifying}
+                  className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all"
+                >
+                  <Download size={15} />
+                  <span>{isKm ? 'ទាញយក និងផ្ទៀងផ្ទាត់ការអាប់ដេត (Download Update)' : 'Download & Verify Update (HUD)'}</span>
+                </button>
+
+                <div className="flex items-center justify-between gap-2 pt-1 text-xs">
+                  <a
+                    href="/GlassNotes.apk"
+                    download="GlassNotes.apk"
+                    onClick={() => onShowToast('Downloading GlassNotes.apk')}
+                    className="flex items-center gap-1.5 text-blue-500 hover:underline font-semibold"
+                  >
+                    <Download size={13} />
+                    <span>Download GlassNotes.apk</span>
+                  </a>
+
+                  <a
+                    href={`https://github.com/${settings.githubOwnerRepo}/releases`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold"
+                  >
+                    <ExternalLink size={13} />
+                    <span>GitHub Releases</span>
+                  </a>
+                </div>
+              </div>
             )}
           </div>
 
