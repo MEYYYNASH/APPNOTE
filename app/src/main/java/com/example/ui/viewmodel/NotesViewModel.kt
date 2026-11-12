@@ -56,7 +56,10 @@ data class NotesUiState(
     val isMarkdownPreview: Boolean = false
 )
 
-class NotesViewModel(private val repository: NotesRepository) : ViewModel() {
+class NotesViewModel(
+    private val repository: NotesRepository,
+    private val appContext: Context? = null
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(NotesUiState())
     val uiState: StateFlow<NotesUiState> = _uiState.asStateFlow()
@@ -91,6 +94,9 @@ class NotesViewModel(private val repository: NotesRepository) : ViewModel() {
                 storageBytes = repository.calculateStorageBytes(),
                 usingMemoryFallback = repository.isUsingMemoryFallback() || !ok
             )
+        }
+        appContext?.let { ctx ->
+            com.example.widget.NotesWidgetManager.notifyDataChanged(ctx)
         }
         if (showSaved) {
             triggerSavedPill()
@@ -324,6 +330,84 @@ class NotesViewModel(private val repository: NotesRepository) : ViewModel() {
                 activeTab = FilterTab.ALL
             )
         }
+    }
+
+    fun createQuickReminderNote(
+        context: Context,
+        title: String,
+        body: String,
+        delayMinutes: Int,
+        soundStyle: String
+    ) {
+        val cleanTitle = title.trim().ifBlank { "Quick Reminder" }
+        val cleanBody = body.trim()
+        val now = System.currentTimeMillis()
+        val triggerAt = now + delayMinutes.coerceAtLeast(1) * 60_000L
+        val newNote = Note(
+            id = UUID.randomUUID().toString(),
+            title = cleanTitle,
+            body = cleanBody,
+            isChecklist = false,
+            color = NoteColor.AMBER,
+            isPinned = false,
+            folder = _uiState.value.searchFilters.folder,
+            reminderAt = triggerAt,
+            reminderFired = false,
+            reminderSoundStyle = soundStyle,
+            versions = listOf(
+                NoteVersion(
+                    id = UUID.randomUUID().toString(),
+                    timestamp = now,
+                    title = cleanTitle,
+                    body = cleanBody,
+                    checklist = emptyList(),
+                    isChecklist = false
+                )
+            ),
+            activityLog = listOf(
+                ActivityLogEntry(UUID.randomUUID().toString(), now, "created with reminder")
+            ),
+            createdAt = now,
+            updatedAt = now
+        )
+        val updated = listOf(newNote) + _uiState.value.notes
+        lastSnapshotTimeByNote[newNote.id] = now
+        persistNotes(updated)
+        triggerEntrancePulse(newNote.id)
+
+        com.example.util.ReminderScheduler.scheduleNoteReminder(
+            context = context,
+            noteId = newNote.id,
+            title = cleanTitle,
+            body = cleanBody,
+            triggerAtMillis = triggerAt
+        )
+        val delayMs = (triggerAt - System.currentTimeMillis()).coerceAtLeast(1000L)
+        if (delayMs <= 120_000L) {
+            viewModelScope.launch {
+                delay(delayMs)
+                val current = _uiState.value.notes.find { it.id == newNote.id }
+                if (current != null && current.reminderAt == triggerAt && !current.reminderFired) {
+                    com.example.util.ReminderScheduler.showReminderNotification(
+                        context = context,
+                        noteId = current.id,
+                        title = current.title.ifBlank { "Untitled Note" },
+                        body = current.body
+                    )
+                    val firedList = _uiState.value.notes.map {
+                        if (it.id == newNote.id) it.copy(reminderFired = true) else it
+                    }
+                    persistNotes(firedList, showSaved = false)
+                }
+            }
+        }
+        _uiState.update {
+            it.copy(
+                selectedNoteId = newNote.id,
+                activeTab = FilterTab.ALL
+            )
+        }
+        showToast("Reminder set for ${com.example.util.ReminderScheduler.formatReminderTime(triggerAt)}")
     }
 
     fun duplicateNote(noteId: String) {
@@ -1011,7 +1095,10 @@ class NotesViewModel(private val repository: NotesRepository) : ViewModel() {
     class Factory(private val context: Context) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return NotesViewModel(NotesRepository(context)) as T
+            return NotesViewModel(
+                repository = NotesRepository(context),
+                appContext = context.applicationContext
+            ) as T
         }
     }
 }

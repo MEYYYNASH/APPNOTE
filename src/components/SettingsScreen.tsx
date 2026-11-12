@@ -628,13 +628,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {/* Direct APK Install & Download Button */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   <a
-                    href="/GlassNotes.apk?v=1.1.18"
+                    href={`https://github.com/${settings.githubOwnerRepo}/releases/latest/download/app-release.apk`}
                     download="GlassNotes-v1.1.18.apk"
-                    onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK v1.1.18...' : 'Downloading GlassNotes-v1.1.18.apk...')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK v1.1.18...' : 'Downloading GlassNotes-v1.1.18.apk from GitHub Releases...')}
                     className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all text-center"
                   >
                     <Download size={15} />
-                    <span>Install v1.1.18 APK (Local)</span>
+                    <span>Install v1.1.18 APK (Release)</span>
                   </a>
 
                   <a
@@ -759,13 +761,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {/* Direct APK Link */}
               <div className="flex items-center justify-between gap-2 pt-1 text-xs">
                 <a
-                  href="/GlassNotes.apk?v=1.1.18"
+                  href={`https://github.com/${settings.githubOwnerRepo}/releases/download/v1.1.18/GlassNotes.apk`}
                   download="GlassNotes-v1.1.18.apk"
-                  onClick={() => onShowToast('Downloading GlassNotes-v1.1.18.apk')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => onShowToast('Opening GitHub Release APK v1.1.18')}
                   className="flex items-center gap-1.5 text-blue-500 hover:underline font-semibold"
                 >
                   <Download size={13} />
-                  <span>Direct Download GlassNotes-v1.1.18.apk</span>
+                  <span>Download Release APK (v1.1.18)</span>
                 </a>
 
                 <a

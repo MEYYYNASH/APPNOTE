@@ -242,8 +242,10 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
               Close
             </button>
             <a
-              href="/GlassNotes.apk?v=1.1.18"
+              href={`https://github.com/${githubOwnerRepo}/releases/download/v1.1.18/GlassNotes.apk`}
               download="GlassNotes-v1.1.18.apk"
+              target="_blank"
+              rel="noopener noreferrer"
               onClick={() => onDownloadApk?.()}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all"
             >

@@ -1,65 +1,145 @@
 package com.example.widget
 
 import android.content.Context
-import android.content.SharedPreferences
 
-enum class WidgetType(val id: String, val title: String) {
-    QUICK_NOTE("quick_note", "Quick Note Launcher (Small)"),
-    CHECKLIST("checklist", "Interactive Checklist (Medium)"),
-    NOTES_LIST("notes_list", "Neon Bento Notes Grid (Large)"),
-    UPCOMING_REMINDER("upcoming_reminder", "Upcoming Reminders (Medium)"),
-    STICKY_NOTE("sticky_note", "Single Sticky Note (Small/Medium)")
+enum class WidgetSizePreset(
+    val id: String,
+    val label: String,
+    val cellsLabel: String
+) {
+    SMALL("small", "Small", "2×2"),
+    MEDIUM("medium", "Medium", "4×2"),
+    LARGE("large", "Large", "4×3")
 }
 
-enum class WidgetGlassTheme(val id: String, val label: String, val bgHex: String, val alphaPercent: Int) {
-    FROSTED_VIOLET("frosted_violet", "Frosted Violet Glass", "#E61E1B4B", 85),
-    DEEP_NEON("deep_neon", "Deep Neon Cyan", "#E60F172A", 90),
-    DARK_AMOLED("dark_amoled", "Dark AMOLED Glass", "#F2000000", 95),
-    LIGHT_TRANSLUCENT("light_translucent", "Light Translucent", "#CCFFFFFF", 80),
-    MINIMAL_BORDER("minimal_border", "Minimal Specular", "#B318181B", 70)
+enum class WidgetType(val id: String, val title: String) {
+    QUICK_NOTE("quick_note", "Quick Note & Reminders"),
+    CHECKLIST("checklist", "Interactive Checklist"),
+    NOTES_LIST("notes_list", "Notes & Upcoming Feed"),
+    UPCOMING_REMINDER("upcoming_reminder", "Upcoming Reminders"),
+    STICKY_NOTE("sticky_note", "Single Pinned / Selected Note")
+}
+
+enum class WidgetGlassTheme(
+    val id: String,
+    val label: String,
+    val bgHex: String,
+    val baseColorInt: Int,
+    val borderColorInt: Int,
+    val isLightSurface: Boolean,
+    val defaultAlphaPercent: Int
+) {
+    FROSTED_VIOLET(
+        id = "frosted_violet",
+        label = "Frosted Violet Glass",
+        bgHex = "#1E1B4B",
+        baseColorInt = 0x1E1B4B,
+        borderColorInt = 0xFF8B5CF6.toInt(),
+        isLightSurface = false,
+        defaultAlphaPercent = 88
+    ),
+    DEEP_NEON(
+        id = "deep_neon",
+        label = "Midnight Slate Glass",
+        bgHex = "#0F172A",
+        baseColorInt = 0x0F172A,
+        borderColorInt = 0xFF38BDF8.toInt(),
+        isLightSurface = false,
+        defaultAlphaPercent = 90
+    ),
+    DARK_AMOLED(
+        id = "dark_amoled",
+        label = "Dark AMOLED",
+        bgHex = "#07090F",
+        baseColorInt = 0x07090F,
+        borderColorInt = 0xFF6366F1.toInt(),
+        isLightSurface = false,
+        defaultAlphaPercent = 95
+    ),
+    LIGHT_TRANSLUCENT(
+        id = "light_translucent",
+        label = "Light Frosted",
+        bgHex = "#F8FAFC",
+        baseColorInt = 0xF8FAFC,
+        borderColorInt = 0xFFCBD5E1.toInt(),
+        isLightSurface = true,
+        defaultAlphaPercent = 85
+    ),
+    MINIMAL_BORDER(
+        id = "minimal_border",
+        label = "Minimal Translucent",
+        bgHex = "#18181B",
+        baseColorInt = 0x18181B,
+        borderColorInt = 0x66FFFFFF,
+        isLightSurface = false,
+        defaultAlphaPercent = 72
+    )
 }
 
 data class WidgetConfig(
     val appWidgetId: Int = 0,
+    val sizePreset: WidgetSizePreset = WidgetSizePreset.LARGE,
     val widgetType: WidgetType = WidgetType.NOTES_LIST,
     val glassTheme: WidgetGlassTheme = WidgetGlassTheme.FROSTED_VIOLET,
-    val textSizeSp: Int = 12,
+    val transparencyPercent: Int = 88,
+    val textSizeSp: Int = 13,
+    val textColorHex: String = "#FFFFFF",
     val filterFolder: String = "",
     val selectedNoteId: String = "",
-    val showUpcomingReminder: Boolean = true
+    val showUpcomingReminder: Boolean = true,
+    val refreshIntervalMinutes: Int = 0
 ) {
+    fun resolveBackgroundArgb(): Int {
+        val alphaByte = ((transparencyPercent.coerceIn(25, 100) / 100f) * 255f).toInt().coerceIn(64, 255)
+        return (alphaByte shl 24) or (glassTheme.baseColorInt and 0x00FFFFFF)
+    }
+
     companion object {
         private const val PREFS_NAME = "glassnotes_widget_prefs"
 
         fun load(context: Context, appWidgetId: Int): WidgetConfig {
             val p = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val typeId = p.getString("type_$appWidgetId", WidgetType.NOTES_LIST.id) ?: WidgetType.NOTES_LIST.id
-            val themeId = p.getString("theme_$appWidgetId", WidgetGlassTheme.FROSTED_VIOLET.id) ?: WidgetGlassTheme.FROSTED_VIOLET.id
-            val textSize = p.getInt("text_size_$appWidgetId", 12)
-            val folder = p.getString("folder_$appWidgetId", "") ?: ""
-            val noteId = p.getString("note_id_$appWidgetId", "") ?: ""
-            val showReminder = p.getBoolean("reminder_$appWidgetId", true)
+            val suffix = if (appWidgetId > 0 && p.contains("type_$appWidgetId")) "_$appWidgetId" else "_studio"
+            val sizeId = p.getString("size$suffix", WidgetSizePreset.LARGE.id) ?: WidgetSizePreset.LARGE.id
+            val typeId = p.getString("type$suffix", WidgetType.NOTES_LIST.id) ?: WidgetType.NOTES_LIST.id
+            val themeId = p.getString("theme$suffix", WidgetGlassTheme.FROSTED_VIOLET.id) ?: WidgetGlassTheme.FROSTED_VIOLET.id
+            val alphaPct = p.getInt("alpha$suffix", 88).coerceIn(25, 100)
+            val textSize = p.getInt("text_size$suffix", 13).coerceIn(10, 20)
+            val textColor = p.getString("text_color$suffix", "#FFFFFF") ?: "#FFFFFF"
+            val folder = p.getString("folder$suffix", "") ?: ""
+            val noteId = p.getString("note_id$suffix", "") ?: ""
+            val showReminder = p.getBoolean("reminder$suffix", true)
+            val refreshMin = p.getInt("refresh$suffix", 0)
 
             return WidgetConfig(
                 appWidgetId = appWidgetId,
+                sizePreset = WidgetSizePreset.entries.find { it.id == sizeId } ?: WidgetSizePreset.LARGE,
                 widgetType = WidgetType.entries.find { it.id == typeId } ?: WidgetType.NOTES_LIST,
                 glassTheme = WidgetGlassTheme.entries.find { it.id == themeId } ?: WidgetGlassTheme.FROSTED_VIOLET,
+                transparencyPercent = alphaPct,
                 textSizeSp = textSize,
+                textColorHex = textColor,
                 filterFolder = folder,
                 selectedNoteId = noteId,
-                showUpcomingReminder = showReminder
+                showUpcomingReminder = showReminder,
+                refreshIntervalMinutes = refreshMin
             )
         }
 
         fun save(context: Context, config: WidgetConfig) {
             val p = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val suffix = if (config.appWidgetId > 0) "_${config.appWidgetId}" else "_studio"
             p.edit()
-                .putString("type_${config.appWidgetId}", config.widgetType.id)
-                .putString("theme_${config.appWidgetId}", config.glassTheme.id)
-                .putInt("text_size_${config.appWidgetId}", config.textSizeSp)
-                .putString("folder_${config.appWidgetId}", config.filterFolder)
-                .putString("note_id_${config.appWidgetId}", config.selectedNoteId)
-                .putBoolean("reminder_${config.appWidgetId}", config.showUpcomingReminder)
+                .putString("size$suffix", config.sizePreset.id)
+                .putString("type$suffix", config.widgetType.id)
+                .putString("theme$suffix", config.glassTheme.id)
+                .putInt("alpha$suffix", config.transparencyPercent.coerceIn(25, 100))
+                .putInt("text_size$suffix", config.textSizeSp.coerceIn(10, 20))
+                .putString("text_color$suffix", config.textColorHex)
+                .putString("folder$suffix", config.filterFolder)
+                .putString("note_id$suffix", config.selectedNoteId)
+                .putBoolean("reminder$suffix", config.showUpcomingReminder)
+                .putInt("refresh$suffix", config.refreshIntervalMinutes)
                 .apply()
         }
     }

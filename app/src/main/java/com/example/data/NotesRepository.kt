@@ -14,6 +14,11 @@ import com.example.model.NoteFolder
 import com.example.model.NoteType
 import com.example.model.NoteVersion
 import com.example.model.ThemeOption
+import com.example.data.local.AppDatabase
+import com.example.data.local.toEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -95,7 +100,15 @@ class NotesRepository(context: Context) {
         return try {
             val arr = JSONArray()
             notes.forEach { arr.put(serializeNote(it)) }
-            writeRaw(KEY_NOTES, arr.toString())
+            val ok = writeRaw(KEY_NOTES, arr.toString())
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val dao = AppDatabase.getInstance(appContext).noteDao()
+                    dao.replaceAll(notes.map { it.toEntity() })
+                } catch (_: Exception) {
+                }
+            }
+            ok
         } catch (e: Exception) {
             usingFallback = true
             false

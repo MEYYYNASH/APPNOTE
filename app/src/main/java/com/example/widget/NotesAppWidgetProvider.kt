@@ -30,6 +30,7 @@ class NotesAppWidgetProvider : AppWidgetProvider() {
         const val EXTRA_ITEM_ID = "extra_item_id"
         const val EXTRA_ACTION_CREATE_NOTE = "extra_action_create_note"
         const val EXTRA_ACTION_QUICK_CAPTURE = "extra_action_quick_capture"
+        const val EXTRA_ACTION_QUICK_REMINDER = "extra_action_quick_reminder"
 
         fun updateAllWidgets(context: Context) {
             val appWidgetManager = AppWidgetManager.getInstance(context)

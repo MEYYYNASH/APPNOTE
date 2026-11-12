@@ -1,8 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,16 +13,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -55,11 +50,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.model.AppSettings
 import com.example.model.AppStrings
-import com.example.model.AttachmentType
 import com.example.model.DateModeFilter
 import com.example.model.DateRangeFilter
 import com.example.model.FilterTab
@@ -76,19 +70,16 @@ import com.example.ui.components.DocumentScannerDialog
 import com.example.ui.components.FloatingCapsuleBottomDock
 import com.example.ui.components.FoldersManagerDialog
 import com.example.ui.components.GlassIconButton
-import com.example.ui.components.InteractiveGlassWidgetsStrip
-import com.example.ui.components.NeonBentoBottomBar
-import com.example.ui.components.NeonBentoNoteCard
-import com.example.ui.components.NeonFilterPillsRow
 import com.example.ui.components.NoteContextBottomSheet
 import com.example.ui.components.QuickCaptureDialog
+import com.example.ui.components.QuickReminderDialog
+import com.example.ui.components.WidgetStudioDialog
 import com.example.ui.components.formatNoteTime
 import com.example.ui.icons.LineIcon
 import com.example.ui.icons.LineIconType
 import com.example.ui.theme.LocalGlassTokens
 import com.example.util.ReminderScheduler
 import java.util.Calendar
-import kotlin.math.roundToInt
 
 @Composable
 fun NoteListPane(
@@ -122,6 +113,7 @@ fun NoteListPane(
     onDeleteNote: (String) -> Unit,
     onEmptyTrash: () -> Unit,
     folders: List<NoteFolder> = emptyList(),
+    settings: AppSettings = AppSettings(),
     onToggleFavorite: (String) -> Unit = {},
     onToggleChecklistItem: (String, String) -> Unit = { _, _ -> },
     onMoveNoteToFolder: (String, String) -> Unit = { _, _ -> },
@@ -136,16 +128,39 @@ fun NoteListPane(
     onPermanentlyDeleteFolder: (String) -> Unit = {},
     onReorderFolder: (String, Boolean) -> Unit = { _, _ -> },
     onSaveScannedDocumentAsNote: (String, String, String, String, String, String) -> Unit = { _, _, _, _, _, _ -> },
+    onCreateQuickReminder: (String, String, Int, String) -> Unit = { _, _, _, _ -> },
+    externalQuickCaptureTrigger: Int = 0,
+    externalQuickReminderTrigger: Int = 0,
+    externalWidgetStudioTrigger: Int = 0,
     onShowToast: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val tokens = LocalGlassTokens.current
     val isKhmer = language == LanguageOption.KHMER
+
     var showQuickCaptureDialog by remember { mutableStateOf(false) }
+    var showQuickReminderDialog by remember { mutableStateOf(false) }
+    var showWidgetStudioDialog by remember { mutableStateOf(false) }
     var showFoldersDialog by remember { mutableStateOf(false) }
     var showScannerDialog by remember { mutableStateOf(false) }
     var contextSheetNote by remember { mutableStateOf<Note?>(null) }
     var searchFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(externalQuickCaptureTrigger) {
+        if (externalQuickCaptureTrigger > 0) {
+            showQuickCaptureDialog = true
+        }
+    }
+    LaunchedEffect(externalQuickReminderTrigger) {
+        if (externalQuickReminderTrigger > 0) {
+            showQuickReminderDialog = true
+        }
+    }
+    LaunchedEffect(externalWidgetStudioTrigger) {
+        if (externalWidgetStudioTrigger > 0) {
+            showWidgetStudioDialog = true
+        }
+    }
 
     val dayIndex = remember {
         val cal = Calendar.getInstance()
@@ -167,6 +182,8 @@ fun NoteListPane(
     }
 
     val isOverlayOpen = showQuickCaptureDialog ||
+        showQuickReminderDialog ||
+        showWidgetStudioDialog ||
         showFoldersDialog ||
         showScannerDialog ||
         contextSheetNote != null
@@ -178,16 +195,16 @@ fun NoteListPane(
                 .blur(if (isOverlayOpen) 26.dp else 0.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Full-Screen Header: Logo + Title on left, Folders + Scanner + Quick Capture + Theme Switch + Settings on right
+                // Clean Minimal Header: Logo + "Notes" + Quote on left; ONLY Quick Capture (⚡) + Theme (☀️/🌙) on right
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                        .padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     AppGlassLogo(
-                        sizeDp = 40.dp,
+                        sizeDp = 42.dp,
                         cornerRadius = 13.dp,
                         modifier = Modifier.testTag("app_clean_logo_icon")
                     )
@@ -214,64 +231,35 @@ fun NoteListPane(
                         )
                     }
 
-                    // Suite 1: Folders Manager Button
-                    GlassIconButton(
-                        icon = LineIconType.FOLDER,
-                        contentDesc = "Folders Manager",
-                        sizeDp = 38.dp,
-                        onClick = { showFoldersDialog = true },
-                        testTagName = "open_folders_manager_button"
-                    )
-
-                    // Suite 2: Document Scanner Button
-                    GlassIconButton(
-                        icon = LineIconType.CAMERA,
-                        contentDesc = "Document Scanner",
-                        sizeDp = 38.dp,
-                        onClick = { showScannerDialog = true },
-                        testTagName = "open_document_scanner_button"
-                    )
-
-                    // Quick Capture (Bolt)
                     GlassIconButton(
                         icon = LineIconType.QUICK_CAPTURE,
                         contentDesc = strings.quickCapture,
-                        sizeDp = 38.dp,
+                        sizeDp = 40.dp,
                         onClick = { showQuickCaptureDialog = true },
                         testTagName = "quick_capture_fab"
                     )
 
-                    // Quick Theme Switch (Sun / Moon)
                     GlassIconButton(
                         icon = if (tokens.isDark) LineIconType.SUN else LineIconType.MOON,
                         contentDesc = "Switch theme",
-                        sizeDp = 38.dp,
+                        sizeDp = 40.dp,
                         onClick = onToggleTheme,
                         testTagName = "toggle_theme_button"
                     )
-
-                    // Settings Button
-                    GlassIconButton(
-                        icon = LineIconType.SETTINGS,
-                        contentDesc = strings.settingsTitle,
-                        sizeDp = 38.dp,
-                        onClick = onOpenSettings,
-                        testTagName = "header_settings_button"
-                    )
                 }
 
-                // Full-width Glass Search Bar + Integrated Filter Toggle Icon inside right end
+                // Clean Rounded Search Pill with Filter Toggle inside right edge
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .height(44.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .padding(horizontal = 18.dp, vertical = 4.dp)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(18.dp))
                         .background(tokens.fieldFill)
                         .border(
-                            width = if (searchFocused) 2.dp else 1.dp,
+                            width = if (searchFocused) 1.6.dp else 1.dp,
                             color = if (searchFocused) tokens.accentStart else tokens.panelBorder,
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(18.dp)
                         )
                         .padding(horizontal = 14.dp),
                     contentAlignment = Alignment.CenterStart
@@ -330,7 +318,6 @@ fun NoteListPane(
                             }
                         }
 
-                        // Filter sliders toggle inside search bar right edge
                         Box(
                             modifier = Modifier
                                 .testTag("filter_chip_filters")
@@ -357,7 +344,7 @@ fun NoteListPane(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(horizontal = 18.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         recentSearches.take(6).forEach { suggestion ->
@@ -382,13 +369,13 @@ fun NoteListPane(
                     }
                 }
 
-                // Expandable Advanced Filter Selects Row (Type, Folder, Date, Modified/Created)
+                // Expandable Advanced Filter Row
                 AnimatedVisibility(visible = showFilterRow) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState())
-                            .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+                            .padding(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         FilterDropdownSelect(
@@ -435,100 +422,102 @@ fun NoteListPane(
                     }
                 }
 
-                // Neon Filter Pills Row matching Screenshot 4: [All] [Pinned] [Favorites] [Folders] [More]
-                Box(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    NeonFilterPillsRow(
-                        activeTab = activeTab,
-                        isKhmer = isKhmer,
-                        onSelectTab = { tab ->
-                            if (tab == FilterTab.FOLDERS) {
-                                showFoldersDialog = true
-                            }
-                            onSelectTab(tab)
+                // Clean Translucent Horizontal Pills Row matching screenshot: [All] [Pinned] [Folders] [Widgets] [Remind] [Scanner] [Trash]
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 18.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CleanFilterPill(
+                        label = strings.tabAll,
+                        selected = activeTab == FilterTab.ALL && searchFilters.folder.isBlank(),
+                        onClick = {
+                            onUpdateFilters(null, "", null, null)
+                            onSelectTab(FilterTab.ALL)
                         },
-                        onOpenFoldersModal = { showFoldersDialog = true },
-                        onOpenDocumentScanner = { showScannerDialog = true },
-                        onToggleAdvancedFilters = onToggleFilterRow
+                        testTag = "pill_filter_all"
+                    )
+                    CleanFilterPill(
+                        label = strings.tabPinned,
+                        selected = activeTab == FilterTab.PINNED,
+                        onClick = { onSelectTab(FilterTab.PINNED) },
+                        testTag = "pill_filter_pinned"
+                    )
+                    CleanFilterPill(
+                        label = if (isKhmer) "ថតឯកសារ" else "Folders",
+                        selected = activeTab == FilterTab.FOLDERS || searchFilters.folder.isNotBlank(),
+                        onClick = { showFoldersDialog = true },
+                        testTag = "open_folders_manager_button"
+                    )
+                    CleanFilterPill(
+                        label = if (isKhmer) "Widget" else "Widgets",
+                        selected = showWidgetStudioDialog,
+                        onClick = { showWidgetStudioDialog = true },
+                        testTag = "open_widget_studio_button"
+                    )
+                    CleanFilterPill(
+                        label = if (isKhmer) "រំលឹក" else "Remind",
+                        selected = showQuickReminderDialog,
+                        onClick = { showQuickReminderDialog = true },
+                        testTag = "open_quick_reminder_button"
+                    )
+                    CleanFilterPill(
+                        label = if (isKhmer) "ស្កេន" else "Scanner",
+                        selected = showScannerDialog,
+                        onClick = { showScannerDialog = true },
+                        testTag = "open_document_scanner_button"
+                    )
+                    CleanFilterPill(
+                        label = strings.tabTrash,
+                        selected = activeTab == FilterTab.TRASH,
+                        onClick = { onSelectTab(FilterTab.TRASH) },
+                        testTag = "pill_filter_trash"
                     )
                 }
 
-                // Active Folder Filter Chip if filtering by a specific folder
+                // Active Folder Indicator (if a folder filter is currently applied)
                 if (searchFilters.folder.isNotBlank()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                            .padding(horizontal = 18.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "📁 Folder: ${searchFilters.folder}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = tokens.accentStart,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "(${notes.size})",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = tokens.textSecondary
-                            )
-                        }
-                        Box(
+                        Text(
+                            text = "${searchFilters.folder} (${notes.size})",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = tokens.accentStart,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (isKhmer) "សម្អាត" else "Clear",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tokens.textSecondary,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(tokens.fieldFill)
                                 .clickable { onUpdateFilters(null, "", null, null) }
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = if (isKhmer) "បង្ហាញទាំងអស់" else "Clear Folder Filter",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = tokens.textSecondary
-                            )
-                        }
+                        )
                     }
                 }
 
-                // Scrollable Home Content: 5 Interactive Glass Widgets Strip + 2-Column Neon Bento Note Cards Grid
+                // Clean Single-Column Frosted Glass Note List
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .testTag("notes_list_column"),
                     contentPadding = PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
+                        start = 18.dp,
+                        end = 18.dp,
                         top = 4.dp,
-                        bottom = 148.dp
+                        bottom = 110.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Suite 5A: 5 Interactive Glass Widgets Strip at top of Home
-                    item(key = "interactive_widgets_strip") {
-                        InteractiveGlassWidgetsStrip(
-                            notes = notes,
-                            isKhmer = isKhmer,
-                            onQuickNoteClick = { showQuickCaptureDialog = true },
-                            onUpcomingReminderClick = { reminderNote ->
-                                if (reminderNote != null) {
-                                    onSelectNote(reminderNote.id)
-                                } else {
-                                    onCreateNote()
-                                }
-                            },
-                            onStatisticsClick = {
-                                onShowToast("Total active notes: ${notes.count { !it.isTrashed }}")
-                            },
-                            onPomodoroComplete = {
-                                onShowToast("Pomodoro 25:00 Focus session completed!")
-                            }
-                        )
-                    }
-
-                    // Trash empty banner when viewing Trash tab
                     if (activeTab == FilterTab.TRASH && notes.isNotEmpty()) {
                         item(key = "trash_header_bar") {
                             Row(
@@ -578,78 +567,35 @@ fun NoteListPane(
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 36.dp)
+                                    .padding(horizontal = 16.dp, vertical = 48.dp)
                             )
                         }
                     } else {
-                        // Suite 5B: 2-Column Neon Bento Note Cards Grid matching Screenshot 4
-                        val chunkedPairs = notes.chunked(2)
-                        itemsIndexed(
-                            items = chunkedPairs,
-                            key = { _, pair -> pair.joinToString("_") { it.id } }
-                        ) { _, rowNotes ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                rowNotes.forEach { note ->
-                                    NeonBentoNoteCard(
-                                        note = note,
-                                        isSelected = note.id == selectedNoteId,
-                                        hidePreview = hidePreviews,
-                                        availableFolders = allFolders,
-                                        onClick = { onSelectNote(note.id) },
-                                        onTogglePin = { onTogglePin(note.id) },
-                                        onToggleFavorite = { onToggleFavorite(note.id) },
-                                        onToggleChecklistItem = { itemId ->
-                                            onToggleChecklistItem(note.id, itemId)
-                                        },
-                                        onMoveToFolder = { targetFolder ->
-                                            onMoveNoteToFolder(note.id, targetFolder)
-                                            onShowToast("Moved to $targetFolder")
-                                        },
-                                        onCopyToFolder = { targetFolder ->
-                                            onCopyNoteToFolder(note.id, targetFolder)
-                                            onShowToast("Copied to $targetFolder")
-                                        },
-                                        onDuplicate = { onDuplicateNote(note.id) },
-                                        onDelete = { onDeleteNote(note.id) },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .testTag("note_card_${note.id}")
-                                    )
-                                }
-                                if (rowNotes.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
+                        items(
+                            items = notes,
+                            key = { it.id }
+                        ) { note ->
+                            CleanGlassNoteRowCard(
+                                note = note,
+                                isSelected = note.id == selectedNoteId,
+                                hidePreview = hidePreviews,
+                                strings = strings,
+                                onClick = { onSelectNote(note.id) },
+                                onLongClick = { contextSheetNote = note },
+                                modifier = Modifier.testTag("note_card_${note.id}")
+                            )
                         }
                     }
                 }
             }
 
-            // Bottom Dock Area: NeonBentoBottomBar ([📁 Personal ⌄ | 📊 N Notes] + [+ New Note])
-            Column(
+            // Single Clean Bottom Capsule Navigation Dock matching Screenshot
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .alpha(if (contextSheetNote != null) 0f else 1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                    .alpha(if (contextSheetNote != null) 0f else 1f)
             ) {
-                NeonBentoBottomBar(
-                    activeFolder = searchFilters.folder.ifBlank { "Personal" },
-                    totalNotesCount = notes.size,
-                    availableFolders = allFolders,
-                    isKhmer = isKhmer,
-                    onSelectFolder = { chosenFolder ->
-                        onUpdateFilters(null, chosenFolder, null, null)
-                    },
-                    onOpenFoldersManager = { showFoldersDialog = true },
-                    onNewNoteClick = onCreateNote
-                )
-
-                // Keep compact navigation dock accessible for tests and quick section switching
                 FloatingCapsuleBottomDock(
                     activeSection = activeDockSection,
                     homeLabel = if (isKhmer) "ទំព័រដើម" else "Home",
@@ -679,7 +625,26 @@ fun NoteListPane(
         )
     }
 
-    // Suite 1: Full Folders Manager Modal
+    if (showQuickReminderDialog) {
+        QuickReminderDialog(
+            isKhmer = isKhmer,
+            defaultSoundStyle = settings.reminderRingtoneStyle,
+            customSoundBase64 = settings.customSoundBase64,
+            onDismiss = { showQuickReminderDialog = false },
+            onSaveReminder = onCreateQuickReminder
+        )
+    }
+
+    if (showWidgetStudioDialog) {
+        WidgetStudioDialog(
+            notes = notes,
+            availableFolders = allFolders,
+            isKhmer = isKhmer,
+            onDismiss = { showWidgetStudioDialog = false },
+            onShowToast = onShowToast
+        )
+    }
+
     if (showFoldersDialog) {
         FoldersManagerDialog(
             folders = folders,
@@ -706,7 +671,6 @@ fun NoteListPane(
         )
     }
 
-    // Suite 2: Full Multi-Page Document Scanner Modal
     if (showScannerDialog) {
         DocumentScannerDialog(
             availableFolders = allFolders,
@@ -739,6 +703,170 @@ fun NoteListPane(
             onToggleArchive = { onToggleArchive(targetNote.id) },
             onDelete = { onDeleteNote(targetNote.id) }
         )
+    }
+}
+
+@Composable
+private fun CleanFilterPill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    val tokens = LocalGlassTokens.current
+    Box(
+        modifier = Modifier
+            .testTag(testTag)
+            .clip(CircleShape)
+            .background(
+                if (selected) tokens.accentBrush else SolidColor(tokens.fieldFill)
+            )
+            .border(
+                width = 1.dp,
+                color = if (selected) tokens.accentStart else tokens.panelBorder,
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 15.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.5.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            ),
+            color = if (selected) Color.White else tokens.textPrimary,
+            maxLines = 1
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CleanGlassNoteRowCard(
+    note: Note,
+    isSelected: Boolean,
+    hidePreview: Boolean,
+    strings: AppStrings,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val tokens = LocalGlassTokens.current
+    val shape = RoundedCornerShape(18.dp)
+    val accentBarColor = Color(note.color.startColor)
+    val now = System.currentTimeMillis()
+    val hasActiveReminder = note.reminderAt != null && !note.reminderFired && note.reminderAt > now
+
+    val previewLine = remember(note.body, note.isChecklist, note.checklist, hidePreview) {
+        if (hidePreview) {
+            "••••••••••••"
+        } else if (note.isChecklist && note.checklist.isNotEmpty()) {
+            val done = note.checklist.count { it.isDone }
+            "$done of ${note.checklist.size} done"
+        } else {
+            note.body.replace("\n", " ").replace(Regex("\\s+"), " ").trim()
+                .ifBlank { "No additional text" }
+        }
+    }
+
+    val metaLine = remember(note.updatedAt, note.isChecklist, note.folder, note.reminderAt) {
+        buildList {
+            add(formatNoteTime(note.updatedAt))
+            if (note.isChecklist) add("Checklist")
+            if (note.folder.isNotBlank()) add(note.folder)
+            if (hasActiveReminder && note.reminderAt != null) {
+                add("⏰ ${ReminderScheduler.formatReminderTime(note.reminderAt)}")
+            }
+        }.joinToString(" · ")
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(tokens.panelFill)
+            .border(
+                width = if (isSelected) 1.5.dp else 1.dp,
+                color = if (isSelected) tokens.accentStart else tokens.panelBorder,
+                shape = shape
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Left vertical colored accent bar (matches screenshot)
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(48.dp)
+                .clip(CircleShape)
+                .background(accentBarColor)
+        )
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = note.title.ifBlank { strings.untitledNote },
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = tokens.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (hasActiveReminder) {
+                        LineIcon(
+                            type = LineIconType.BELL,
+                            tint = Color(0xFFF59E0B),
+                            size = 13.dp
+                        )
+                    }
+                    if (note.isPinned) {
+                        LineIcon(
+                            type = LineIconType.PIN,
+                            tint = tokens.accentStart,
+                            size = 14.dp
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = previewLine,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                color = tokens.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Text(
+                text = metaLine,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
+                color = tokens.textSecondary.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

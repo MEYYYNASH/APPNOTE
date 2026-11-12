@@ -113,6 +113,7 @@ fun SettingsScreen(
     onExportBackupJson: () -> String,
     onImportBackupJson: (String) -> Boolean,
     onOpenWebMode: () -> Unit = {},
+    onOpenWidgetStudio: () -> Unit = {},
     onShowToast: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1031,6 +1032,64 @@ fun SettingsScreen(
                                         }
                                     )
                                 }
+                            }
+                        }
+                    }
+
+                    // Card 1A: Home Screen Widgets Studio (Jetpack Glance + Customization)
+                    item {
+                        GlassPanel(
+                            cornerRadius = 22.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onBack()
+                                    onOpenWidgetStudio()
+                                }
+                                .testTag("setting_open_widget_studio_card")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                GlassIconButton(
+                                    icon = LineIconType.LAYERS,
+                                    contentDesc = "Widgets Studio",
+                                    active = true,
+                                    sizeDp = 42.dp,
+                                    onClick = {
+                                        onBack()
+                                        onOpenWidgetStudio()
+                                    }
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isKm) "ស្ទូឌីយោ Widget អេក្រង់ដើម" else "Home Screen Widgets Studio",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = tokens.textPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = if (isKm) {
+                                            "ប្ដូរទំហំ (Small/Medium/Large) ពណ៌ និងបន្ថែមលើអេក្រង់ដើម"
+                                        } else {
+                                            "Customize Small / Medium / Large glass widgets, transparency & pin to Home Screen"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = tokens.textSecondary
+                                    )
+                                }
+                                SettingsActionBtn(
+                                    label = if (isKm) "បើក" else "Open",
+                                    testTag = "setting_open_widget_studio_button",
+                                    onClick = {
+                                        onBack()
+                                        onOpenWidgetStudio()
+                                    }
+                                )
                             }
                         }
                     }

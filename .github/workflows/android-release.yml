@@ -91,14 +91,13 @@ jobs:
           sed -i 's/compileSdk { version = release(36) { minorApiLevel = 1 } }/compileSdk = 35/g' app/build.gradle.kts || true
           sed -i 's/targetSdk = 36/targetSdk = 35/g' app/build.gradle.kts || true
 
-          gradle :app:assembleDebug --no-daemon || true
+          mkdir -p .ci-release-artifacts
+          gradle :app:assembleDebug --no-daemon
           BUILT_APK=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -n 1 || true)
           if [ -n "$BUILT_APK" ] && [ -f "$BUILT_APK" ]; then
-            cp "$BUILT_APK" app-release.apk
-          elif [ -f "${GITHUB_WORKSPACE}/GlassNotes.apk" ]; then
-            cp "${GITHUB_WORKSPACE}/GlassNotes.apk" app-release.apk
+            cp "$BUILT_APK" .ci-release-artifacts/app-release.apk
           else
-            echo "ERROR: No APK found."
+            echo "ERROR: No built APK found."
             exit 1
           fi
 
@@ -106,8 +105,8 @@ jobs:
           python3 - << 'PYEOF'
           import zipfile, struct, os, shutil
 
-          apk_path = "app-release.apk"
-          tmp_apk = "app-release-patched.apk"
+          apk_path = ".ci-release-artifacts/app-release.apk"
+          tmp_apk = ".ci-release-artifacts/app-release-patched.apk"
           with zipfile.ZipFile(apk_path, "r") as zin:
               manifest = zin.read("AndroidManifest.xml")
               target_ver = "1.1.18".encode("utf-16le")
@@ -138,7 +137,7 @@ jobs:
           BUILD_TOOLS_DIR=$(ls -d "$ANDROID_HOME/build-tools/"* 2>/dev/null | sort -V | tail -n 1 || true)
           if [ -n "$BUILD_TOOLS_DIR" ]; then
             if [ -x "$BUILD_TOOLS_DIR/zipalign" ]; then
-              "$BUILD_TOOLS_DIR/zipalign" -f -p 4 app-release.apk app-aligned.apk && mv app-aligned.apk app-release.apk
+              "$BUILD_TOOLS_DIR/zipalign" -f -p 4 .ci-release-artifacts/app-release.apk .ci-release-artifacts/app-aligned.apk && mv .ci-release-artifacts/app-aligned.apk .ci-release-artifacts/app-release.apk
             fi
             if [ -x "$BUILD_TOOLS_DIR/apksigner" ]; then
               APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
@@ -150,27 +149,26 @@ jobs:
                 --v1-signing-enabled true \
                 --v2-signing-enabled true \
                 --v3-signing-enabled true \
-                app-release.apk
-              "$APKSIGNER" verify --verbose --print-certs app-release.apk
-              CERT_SHA256=$("$APKSIGNER" verify --print-certs app-release.apk | grep -m 1 "SHA-256 digest:" | awk '{print $NF}')
+                .ci-release-artifacts/app-release.apk
+              "$APKSIGNER" verify --verbose --print-certs .ci-release-artifacts/app-release.apk
+              CERT_SHA256=$("$APKSIGNER" verify --print-certs .ci-release-artifacts/app-release.apk | grep -m 1 "SHA-256 digest:" | awk '{print $NF}')
               echo "Verified APK Certificate SHA-256: ${CERT_SHA256}"
               echo "cert_sha256=${CERT_SHA256}" >> "$GITHUB_ENV"
             fi
             if [ -x "$BUILD_TOOLS_DIR/aapt" ]; then
-              "$BUILD_TOOLS_DIR/aapt" dump badging app-release.apk | head -n 5
+              "$BUILD_TOOLS_DIR/aapt" dump badging .ci-release-artifacts/app-release.apk | head -n 5
             fi
           fi
-          cp app-release.apk GlassNotes.apk
-          cp app-release.apk public/GlassNotes.apk || true
+          cp .ci-release-artifacts/app-release.apk .ci-release-artifacts/GlassNotes.apk
 
       - name: Calculate SHA-256 Checksum & Generate Release Metadata
         id: checksum
         run: |
-          SHA256_HASH=$(sha256sum app-release.apk | awk '{print $1}')
-          echo "${SHA256_HASH}  app-release.apk" > app-release.apk.sha256
+          SHA256_HASH=$(sha256sum .ci-release-artifacts/app-release.apk | awk '{print $1}')
+          echo "${SHA256_HASH}  app-release.apk" > .ci-release-artifacts/app-release.apk.sha256
           echo "sha256=${SHA256_HASH}" >> "$GITHUB_OUTPUT"
 
-          cat <<EOF > release-metadata.json
+          cat <<EOF > .ci-release-artifacts/release-metadata.json
           {
             "repository": "${GITHUB_REPOSITORY}",
             "packageName": "com.aistudio.glassnotes.vqpzxm",
@@ -206,7 +204,7 @@ jobs:
             -DartifactId=appnote \
             -Dversion="${{ steps.version_meta.outputs.version_name }}" \
             -Dpackaging=apk \
-            -Dfile=app-release.apk \
+            -Dfile=.ci-release-artifacts/app-release.apk \
             -DrepositoryId=github \
             -Durl="https://maven.pkg.github.com/${REPO_LOWER}" || true
 
@@ -230,7 +228,7 @@ jobs:
             - **SHA-256:** `${{ steps.checksum.outputs.sha256 }}`
             - **Signing Cert SHA-256:** `${{ env.cert_sha256 }}`
           files: |
-            app-release.apk
-            GlassNotes.apk
-            app-release.apk.sha256
-            release-metadata.json
+            .ci-release-artifacts/app-release.apk
+            .ci-release-artifacts/GlassNotes.apk
+            .ci-release-artifacts/app-release.apk.sha256
+            .ci-release-artifacts/release-metadata.json

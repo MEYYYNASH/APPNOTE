@@ -15,3 +15,9 @@
 .cxx
 local.properties
 .env
+*.apk
+.build-outputs/
+.ci-release-artifacts/
+dist/
+app-release.apk.sha256
+release-metadata.json

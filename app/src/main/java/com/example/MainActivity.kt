@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -36,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,22 +71,42 @@ import com.example.ui.theme.GlassNotesTheme
 import com.example.ui.theme.LocalGlassTokens
 import com.example.ui.viewmodel.NotesViewModel
 import com.example.util.GitHubSyncHelper
+import com.example.widget.NotesAppWidgetProvider
+import com.example.widget.WidgetSyncWorker
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
+    private val latestIntentState = mutableStateOf<Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        latestIntentState.value = intent
         enableEdgeToEdge()
         setContent {
             val context = LocalContext.current
             val viewModel: NotesViewModel = viewModel(factory = NotesViewModel.Factory(context))
-            GlassNotesApp(viewModel = viewModel)
+            val pendingIntent by latestIntentState
+            GlassNotesApp(
+                viewModel = viewModel,
+                pendingIntent = pendingIntent,
+                onIntentConsumed = { latestIntentState.value = null }
+            )
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        latestIntentState.value = intent
     }
 }
 
 @Composable
-fun GlassNotesApp(viewModel: NotesViewModel) {
+fun GlassNotesApp(
+    viewModel: NotesViewModel,
+    pendingIntent: Intent? = null,
+    onIntentConsumed: () -> Unit = {}
+) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val systemDark = isSystemInDarkTheme()
@@ -148,6 +170,42 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
             }
         }
 
+    var quickCaptureTrigger by remember { mutableIntStateOf(0) }
+    var quickReminderTrigger by remember { mutableIntStateOf(0) }
+    var widgetStudioTrigger by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        WidgetSyncWorker.enqueueImmediateSync(context)
+    }
+
+    LaunchedEffect(pendingIntent) {
+        val intent = pendingIntent ?: return@LaunchedEffect
+        val targetNoteId = intent.getStringExtra(NotesAppWidgetProvider.EXTRA_NOTE_ID)
+        val actionCreateNote = intent.getBooleanExtra(NotesAppWidgetProvider.EXTRA_ACTION_CREATE_NOTE, false)
+        val actionQuickCapture = intent.getBooleanExtra(NotesAppWidgetProvider.EXTRA_ACTION_QUICK_CAPTURE, false)
+        val actionQuickReminder = intent.getBooleanExtra(NotesAppWidgetProvider.EXTRA_ACTION_QUICK_REMINDER, false)
+        val widgetPinned = intent.getBooleanExtra("widget_pinned_success", false)
+
+        if (!targetNoteId.isNullOrBlank()) {
+            viewModel.closeSettings()
+            viewModel.selectNote(targetNoteId)
+        } else if (actionCreateNote) {
+            viewModel.closeSettings()
+            viewModel.createNewNote()
+        } else if (actionQuickCapture) {
+            viewModel.closeSettings()
+            viewModel.closeMobileEditor()
+            quickCaptureTrigger++
+        } else if (actionQuickReminder) {
+            viewModel.closeSettings()
+            viewModel.closeMobileEditor()
+            quickReminderTrigger++
+        } else if (widgetPinned) {
+            viewModel.showToast("Widget added to Home Screen!")
+        }
+        onIntentConsumed()
+    }
+
     var detectedGitHubReleaseTag by remember { mutableStateOf("") }
     var dismissedUpdateBannerForVersion by remember { mutableStateOf("") }
     val hasNewAppUpdate = detectedGitHubReleaseTag.isNotBlank()
@@ -191,6 +249,7 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                         onEmptyTrash = { viewModel.emptyTrash() },
                         onExportBackupJson = { viewModel.exportBackupJson() },
                         onImportBackupJson = { json -> viewModel.importBackupJson(json) },
+                        onOpenWidgetStudio = { widgetStudioTrigger++ },
                         onShowToast = { msg -> viewModel.showToast(msg) },
                         modifier = Modifier.fillMaxSize()
                     )
@@ -234,6 +293,7 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                                     onDeleteNote = viewModel::moveToTrash,
                                     onEmptyTrash = viewModel::emptyTrash,
                                     folders = state.folders,
+                                    settings = state.settings,
                                     onToggleFavorite = viewModel::toggleFavorite,
                                     onToggleChecklistItem = viewModel::toggleChecklistItemInNote,
                                     onMoveNoteToFolder = viewModel::moveNoteToFolder,
@@ -248,6 +308,18 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                                     onPermanentlyDeleteFolder = viewModel::permanentlyDeleteFolder,
                                     onReorderFolder = viewModel::reorderFolder,
                                     onSaveScannedDocumentAsNote = handleSaveScannedDocAsNote,
+                                    onCreateQuickReminder = { title, body, delayMins, soundStyle ->
+                                        viewModel.createQuickReminderNote(
+                                            context = context,
+                                            title = title,
+                                            body = body,
+                                            delayMinutes = delayMins,
+                                            soundStyle = soundStyle
+                                        )
+                                    },
+                                    externalQuickCaptureTrigger = quickCaptureTrigger,
+                                    externalQuickReminderTrigger = quickReminderTrigger,
+                                    externalWidgetStudioTrigger = widgetStudioTrigger,
                                     onShowToast = viewModel::showToast,
                                     modifier = Modifier
                                         .width(420.dp)
@@ -443,6 +515,7 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                                         onDeleteNote = viewModel::moveToTrash,
                                         onEmptyTrash = viewModel::emptyTrash,
                                         folders = state.folders,
+                                        settings = state.settings,
                                         onToggleFavorite = viewModel::toggleFavorite,
                                         onToggleChecklistItem = viewModel::toggleChecklistItemInNote,
                                         onMoveNoteToFolder = viewModel::moveNoteToFolder,
@@ -457,6 +530,18 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                                         onPermanentlyDeleteFolder = viewModel::permanentlyDeleteFolder,
                                         onReorderFolder = viewModel::reorderFolder,
                                         onSaveScannedDocumentAsNote = handleSaveScannedDocAsNote,
+                                        onCreateQuickReminder = { title, body, delayMins, soundStyle ->
+                                            viewModel.createQuickReminderNote(
+                                                context = context,
+                                                title = title,
+                                                body = body,
+                                                delayMinutes = delayMins,
+                                                soundStyle = soundStyle
+                                            )
+                                        },
+                                        externalQuickCaptureTrigger = quickCaptureTrigger,
+                                        externalQuickReminderTrigger = quickReminderTrigger,
+                                        externalWidgetStudioTrigger = widgetStudioTrigger,
                                         onShowToast = viewModel::showToast,
                                         modifier = Modifier.fillMaxSize()
                                     )
