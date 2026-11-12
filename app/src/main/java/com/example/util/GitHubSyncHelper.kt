@@ -1612,6 +1612,7 @@ object GitHubSyncHelper {
                 put("body", releaseBody)
                 put("draft", false)
                 put("prerelease", false)
+                put("make_latest", "true")
             }
 
             val createConn = (URL(RELEASES_API_URL).openConnection() as HttpURLConnection).apply {
@@ -1676,6 +1677,37 @@ object GitHubSyncHelper {
             val releaseId = releaseJson.optLong("id", 0L)
             val uploadBaseUrl = "https://uploads.github.com/repos/$OFFICIAL_REPO_SLUG/releases/$releaseId/assets"
 
+            // Ensure existing release is promoted to non-draft, non-prerelease Latest
+            if (releaseId > 0L) {
+                try {
+                    val patchConn = (URL("$RELEASES_API_URL/$releaseId").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "PATCH"
+                        doOutput = true
+                        connectTimeout = 10000
+                        readTimeout = 10000
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        setRequestProperty("Authorization", "Bearer $cleanToken")
+                        setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                        setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                        setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+                    }
+                    val patchBody = JSONObject().apply {
+                        put("name", "APPNOTE $tagName")
+                        put("body", releaseBody)
+                        put("draft", false)
+                        put("prerelease", false)
+                        put("make_latest", "true")
+                    }
+                    patchConn.outputStream.use { out ->
+                        out.write(patchBody.toString().toByteArray(Charsets.UTF_8))
+                        out.flush()
+                    }
+                    patchConn.responseCode
+                    patchConn.disconnect()
+                } catch (_: Exception) {
+                }
+            }
+
             // Delete any stale assets on this release so fresh v1.1.18 assets overwrite cleanly
             listOf("release-metadata.json", "app-release.apk.sha256", "app-release.apk", "GlassNotes.apk").forEach { assetName ->
                 deleteReleaseAssetIfPresent(releaseJson, assetName, cleanToken)
@@ -1711,12 +1743,18 @@ object GitHubSyncHelper {
                 bytes = "$apkSha256  app-release.apk\n".toByteArray(Charsets.UTF_8)
             )
 
-            // Upload signed app-release.apk
+            // Upload signed app-release.apk & GlassNotes.apk
             onStatus("Uploading signed app-release.apk (${apkFile.length() / 1024} KB) to GitHub Release...")
             uploadReleaseAssetFile(
                 uploadBaseUrl = uploadBaseUrl,
                 token = cleanToken,
                 assetName = "app-release.apk",
+                file = apkFile
+            )
+            uploadReleaseAssetFile(
+                uploadBaseUrl = uploadBaseUrl,
+                token = cleanToken,
+                assetName = "GlassNotes.apk",
                 file = apkFile
             )
 
