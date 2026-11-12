@@ -90,8 +90,10 @@ jobs:
       - name: Build & Sign Android APK (v1.1.19 / 10119) with Official Keystore
         run: |
           touch .env .env.example
+          # Remove any orphaned merged values.xml left in repo that duplicates colors.xml/strings.xml/themes.xml
+          rm -f app/src/main/res/values/values.xml
           mkdir -p .ci-release-artifacts
-          gradle :app:assembleDebug --no-daemon --stacktrace
+          gradle :app:assembleDebug --no-daemon --stacktrace --console=plain -Dorg.gradle.jvmargs="-Xmx3g -Dfile.encoding=UTF-8"
           BUILT_APK=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -n 1 || true)
           if [ -n "$BUILT_APK" ] && [ -f "$BUILT_APK" ]; then
             cp "$BUILT_APK" .ci-release-artifacts/app-release.apk
@@ -124,9 +126,9 @@ jobs:
               echo "cert_sha256=${CERT_SHA256}" >> "$GITHUB_ENV"
             fi
             if [ -x "$BUILD_TOOLS_DIR/aapt" ]; then
-              "$BUILD_TOOLS_DIR/aapt" dump badging .ci-release-artifacts/app-release.apk | head -n 5
+              "$BUILD_TOOLS_DIR/aapt" dump badging .ci-release-artifacts/app-release.apk | head -n 5 || true
             elif [ -x "$BUILD_TOOLS_DIR/aapt2" ]; then
-              "$BUILD_TOOLS_DIR/aapt2" dump badging .ci-release-artifacts/app-release.apk | head -n 5
+              "$BUILD_TOOLS_DIR/aapt2" dump badging .ci-release-artifacts/app-release.apk | head -n 5 || true
             fi
           fi
           cp .ci-release-artifacts/app-release.apk .ci-release-artifacts/GlassNotes.apk
