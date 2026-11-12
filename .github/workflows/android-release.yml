@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release version tag (e.g. v1.1.11)'
+        description: 'Release version tag (e.g. v1.1.14)'
         required: false
-        default: 'v1.1.11'
+        default: 'v1.1.14'
 
 permissions:
   contents: write
@@ -33,43 +33,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Prepare Signing Keystore (Decode debug.keystore.base64 or Secrets)
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          KEYSTORE_FILE="${GITHUB_WORKSPACE}/release-signing-key.jks"
-          if [ -f "${GITHUB_WORKSPACE}/debug.keystore.base64" ]; then
-            echo "Decoding official APPNOTE debug.keystore.base64 so signature matches installed app..."
-            base64 --decode "${GITHUB_WORKSPACE}/debug.keystore.base64" > "${GITHUB_WORKSPACE}/debug.keystore"
-          elif [ ! -f "${GITHUB_WORKSPACE}/debug.keystore" ]; then
-            keytool -genkeypair -v \
-              -keystore "${GITHUB_WORKSPACE}/debug.keystore" \
-              -alias androiddebugkey \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass android \
-              -keypass android \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
-            echo "Using configured GitHub Actions signing secrets..."
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
-            echo "KS_PASS=${ANDROID_KEYSTORE_PASSWORD}" >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=${ANDROID_KEY_ALIAS}" >> "$GITHUB_ENV"
-            echo "KEY_PASS=${ANDROID_KEY_PASSWORD}" >> "$GITHUB_ENV"
-          else
-            echo "Using official repository debug.keystore (from debug.keystore.base64) for identical APK signature..."
-            cp "${GITHUB_WORKSPACE}/debug.keystore" "$KEYSTORE_FILE"
-            echo "KS_PASS=android" >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
-            echo "KEY_PASS=android" >> "$GITHUB_ENV"
-          fi
-
       - name: Determine Release Version Tag & VersionCode
         id: version_meta
         run: |
@@ -78,61 +41,92 @@ jobs:
           elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
             TAG_NAME="${{ github.event.inputs.release_tag }}"
           else
-            TAG_NAME="v1.1.$((8 + ${GITHUB_RUN_NUMBER:-1}))"
+            TAG_NAME="v1.1.$((8 + ${GITHUB_RUN_NUMBER:-6}))"
           fi
           CLEAN_VERSION="${TAG_NAME#v}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "${CLEAN_VERSION}"
           MAJOR=${MAJOR:-1}
           MINOR=${MINOR:-1}
           PATCH=${PATCH%%[^0-9]*}
-          PATCH=${PATCH:-8}
+          PATCH=${PATCH:-14}
           VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_name=${CLEAN_VERSION}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
 
-          # Stamp versionCode and versionName into app/build.gradle.kts before building
-          sed -i "s/versionCode = [0-9]\+/versionCode = ${VERSION_CODE}/g" app/build.gradle.kts || true
-          sed -i "s/versionName = \"[^\"]*\"/versionName = \"${CLEAN_VERSION}\"/g" app/build.gradle.kts || true
-
-      - name: Build Android APK (or Use Pre-built Root GlassNotes.apk)
-        run: |
-          if command -v gradle >/dev/null 2>&1; then
-            gradle :app:assembleDebug --no-daemon || echo "Gradle build skipped/fallback to pre-built GlassNotes.apk"
-          fi
-          BUILT_APK=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -n 1 || true)
-          if [ -n "$BUILT_APK" ] && [ -f "$BUILT_APK" ]; then
-            cp "$BUILT_APK" raw-input.apk
-          elif [ -f "${GITHUB_WORKSPACE}/GlassNotes.apk" ]; then
-            echo "Using pre-built GlassNotes.apk from repository root..."
-            cp "${GITHUB_WORKSPACE}/GlassNotes.apk" raw-input.apk
-          else
-            echo "ERROR: No APK found."
-            exit 1
-          fi
-
-      - name: Align, Sign & Verify APK with apksigner
+      - name: Prepare Signed APK (Preserve Official Signature of GlassNotes.apk or Sign with Secrets)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           BUILD_TOOLS_DIR=$(ls -d "$ANDROID_HOME/build-tools/"* 2>/dev/null | sort -V | tail -n 1 || true)
-          if [ -n "$BUILD_TOOLS_DIR" ] && [ -x "$BUILD_TOOLS_DIR/apksigner" ]; then
-            APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
-            ZIPALIGN="$BUILD_TOOLS_DIR/zipalign"
+          APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+          ZIPALIGN="$BUILD_TOOLS_DIR/zipalign"
+
+          # 1. If pre-built GlassNotes.apk exists in root and is ALREADY signed with the official APPNOTE key,
+          #    preserve its exact signature unless custom GitHub Secrets are explicitly provided.
+          if [ -f "${GITHUB_WORKSPACE}/GlassNotes.apk" ] && [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "Found pre-signed official GlassNotes.apk in repository root. Preserving official signature so in-app updater certificate check passes..."
+            cp "${GITHUB_WORKSPACE}/GlassNotes.apk" app-release.apk
+            if [ -n "$APKSIGNER" ] && [ -x "$APKSIGNER" ]; then
+              "$APKSIGNER" verify --verbose --print-certs app-release.apk
+              CERT_SHA256=$("$APKSIGNER" verify --print-certs app-release.apk | grep -m 1 "SHA-256 digest:" | awk '{print $NF}')
+              echo "cert_sha256=${CERT_SHA256}" >> "$GITHUB_ENV"
+            fi
+          else
+            # 2. Otherwise build with Gradle and sign with provided Secrets or debug.keystore.base64
+            KEYSTORE_FILE="${GITHUB_WORKSPACE}/release-signing-key.jks"
+            if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
+              echo "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > "$KEYSTORE_FILE"
+              KS_PASS="$ANDROID_KEYSTORE_PASSWORD"
+              KEY_ALIAS="$ANDROID_KEY_ALIAS"
+              KEY_PASS="$ANDROID_KEY_PASSWORD"
+            elif [ -f "${GITHUB_WORKSPACE}/debug.keystore.base64" ]; then
+              tr -d '\r\n ' < "${GITHUB_WORKSPACE}/debug.keystore.base64" | base64 --decode > "$KEYSTORE_FILE"
+              KS_PASS="android"
+              KEY_ALIAS="androiddebugkey"
+              KEY_PASS="android"
+            else
+              keytool -genkeypair -v \
+                -keystore "$KEYSTORE_FILE" \
+                -alias androiddebugkey \
+                -keyalg RSA \
+                -keysize 2048 \
+                -validity 10000 \
+                -storepass android \
+                -keypass android \
+                -dname "CN=Android Debug,O=Android,C=US"
+              KS_PASS="android"
+              KEY_ALIAS="androiddebugkey"
+              KEY_PASS="android"
+            fi
+
+            if [ -f "${GITHUB_WORKSPACE}/GlassNotes.apk" ]; then
+              cp "${GITHUB_WORKSPACE}/GlassNotes.apk" raw-input.apk
+            else
+              gradle :app:assembleDebug --no-daemon
+              BUILT_APK=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+              cp "$BUILT_APK" raw-input.apk
+            fi
+
             "$ZIPALIGN" -f -v -p 4 raw-input.apk app-aligned.apk
             "$APKSIGNER" sign \
-              --ks "${GITHUB_WORKSPACE}/release-signing-key.jks" \
+              --ks "$KEYSTORE_FILE" \
               --ks-key-alias "$KEY_ALIAS" \
-              --ks-pass env:KS_PASS \
-              --key-pass env:KEY_PASS \
+              --ks-pass "pass:${KS_PASS}" \
+              --key-pass "pass:${KEY_PASS}" \
+              --v1-signing-enabled true \
+              --v2-signing-enabled true \
+              --v3-signing-enabled true \
               --out app-release.apk \
               app-aligned.apk
             "$APKSIGNER" verify --verbose --print-certs app-release.apk
             CERT_SHA256=$("$APKSIGNER" verify --print-certs app-release.apk | grep -m 1 "SHA-256 digest:" | awk '{print $NF}')
             echo "cert_sha256=${CERT_SHA256}" >> "$GITHUB_ENV"
-          else
-            cp raw-input.apk app-release.apk
-            echo "cert_sha256=" >> "$GITHUB_ENV"
+            rm -f "$KEYSTORE_FILE" app-aligned.apk raw-input.apk
           fi
-          cp app-release.apk GlassNotes.apk
 
       - name: Calculate SHA-256 Checksum & Generate Release Metadata
         id: checksum
@@ -179,10 +173,6 @@ jobs:
             -Dfile=app-release.apk \
             -DrepositoryId=github \
             -Durl="https://maven.pkg.github.com/${REPO_LOWER}" || true
-
-      - name: Clean Up Temporary Files
-        if: always()
-        run: rm -f "${GITHUB_WORKSPACE}/release-signing-key.jks" app-aligned.apk raw-input.apk
 
       - name: Create & Publish GitHub Release
         uses: softprops/action-gh-release@v2
