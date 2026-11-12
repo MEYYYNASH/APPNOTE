@@ -501,18 +501,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {/* Direct APK Install & Download Button */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   <a
-                    href="/GlassNotes.apk"
+                    href={`https://github.com/${settings.githubOwnerRepo}/releases/latest/download/GlassNotes.apk`}
                     download="GlassNotes.apk"
-                    onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK...' : 'Downloading GlassNotes.apk...')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK...' : 'Downloading GlassNotes.apk from GitHub Releases...')}
                     className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all text-center"
                   >
                     <Download size={15} />
-                    <span>Install APK (Local 18 MB)</span>
+                    <span>Install APK (Latest Release)</span>
                   </a>
 
                   <a
-                    href={`https://github.com/${settings.githubOwnerRepo}/releases/download/v1.1.17/GlassNotes.apk`}
-                    download="GlassNotes.apk"
+                    href={`https://github.com/${settings.githubOwnerRepo}/releases/latest`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-lg hover:bg-blue-500 active:scale-95 transition-all text-center"
@@ -628,13 +629,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {/* Direct APK Link */}
               <div className="flex items-center justify-between gap-2 pt-1 text-xs">
                 <a
-                  href="/GlassNotes.apk"
-                  download="GlassNotes.apk"
-                  onClick={() => onShowToast('Downloading GlassNotes.apk')}
+                  href={`https://github.com/${settings.githubOwnerRepo}/releases/latest/download/GlassNotes.apk`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => onShowToast('Opening latest GlassNotes.apk from GitHub Releases')}
                   className="flex items-center gap-1.5 text-blue-500 hover:underline font-semibold"
                 >
                   <Download size={13} />
-                  <span>Direct Download GlassNotes.apk (18 MB)</span>
+                  <span>Download Latest APK from GitHub Releases</span>
                 </a>
 
                 <a
