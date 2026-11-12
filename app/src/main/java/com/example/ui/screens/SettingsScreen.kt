@@ -409,6 +409,73 @@ fun SettingsScreen(
                                     }
                                 )
 
+                                // Optional GitHub Personal Access Token row to bypass 60 req/hr rate limit
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(tokens.fieldFill)
+                                        .border(1.dp, tokens.panelBorder, RoundedCornerShape(14.dp))
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = if (isKm) "GitHub Personal Access Token (ជម្រើសបន្ថែម)" else "GitHub Token (Optional)",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = tokens.textPrimary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = if (settings.githubToken.isNotBlank()) "Connected" else "Rate-limit safe",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (settings.githubToken.isNotBlank()) Color(0xFF10B981) else tokens.accentStart,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    Text(
+                                        text = if (isKm) {
+                                            "ការពារដោយប្រព័ន្ធទាញយក Web/Atom ស្វ័យប្រវត្ត។ អាចបញ្ចូល token (ghp_...) ដើម្បីបង្កើនកម្រិតដល់ 5,000/hr។"
+                                        } else {
+                                            "Protected by automatic GitHub Web & Atom feed fallback to avoid HTTP 403. Add a token (ghp_...) to boost API limit to 5,000 req/hr."
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = tokens.textSecondary,
+                                        lineHeight = 16.sp
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(tokens.panelFill)
+                                            .border(1.dp, tokens.panelBorder, RoundedCornerShape(10.dp))
+                                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                                    ) {
+                                        if (settings.githubToken.isEmpty()) {
+                                            Text(
+                                                text = "ghp_xxxxxxxxxxxxxxxxxxxx",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = tokens.textSecondary.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                        BasicTextField(
+                                            value = settings.githubToken,
+                                            onValueChange = { newToken ->
+                                                onUpdateSettings { s -> s.copy(githubToken = newToken.trim()) }
+                                            },
+                                            singleLine = true,
+                                            visualTransformation = PasswordVisualTransformation(),
+                                            textStyle = MaterialTheme.typography.bodySmall.copy(color = tokens.textPrimary),
+                                            cursorBrush = SolidColor(tokens.accentStart),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+
                                 // Primary Action 1: Check Update (queries GitHub Releases)
                                 GlassActionPill(
                                     label = if (releaseInfo.state == UpdateState.CHECKING) {
@@ -437,7 +504,8 @@ fun SettingsScreen(
                                             val result = GitHubSyncHelper.checkGitHubReleaseUpdate(
                                                 context = context,
                                                 includePrerelease = settings.includePrereleases,
-                                                notifyOnNewRelease = true
+                                                notifyOnNewRelease = true,
+                                                token = settings.githubToken
                                             )
                                             releaseInfo = result
                                             onUpdateSettings {
@@ -480,6 +548,7 @@ fun SettingsScreen(
                                                 val verifiedResult = GitHubSyncHelper.downloadAndVerifyReleaseApk(
                                                     context = context,
                                                     releaseInfo = releaseInfo,
+                                                    token = settings.githubToken,
                                                     onStateChange = { st, pct, msg ->
                                                         downloadProgressPct = pct
                                                         releaseInfo = releaseInfo.copy(
@@ -493,10 +562,18 @@ fun SettingsScreen(
                                                 if (verifiedResult.state == UpdateState.READY_TO_INSTALL &&
                                                     verifiedResult.verifiedApkPath.isNotBlank()
                                                 ) {
-                                                    GitHubSyncHelper.launchApkPackageInstaller(
-                                                        context = context,
-                                                        verifiedApkPath = verifiedResult.verifiedApkPath
-                                                    )
+                                                    if (GitHubSyncHelper.canRequestPackageInstalls(context)) {
+                                                        GitHubSyncHelper.launchApkPackageInstaller(
+                                                            context = context,
+                                                            verifiedApkPath = verifiedResult.verifiedApkPath
+                                                        )
+                                                    } else {
+                                                        onShowToast(
+                                                            if (isKm) "សូមបើក 'Allow from this source' ក្នុង Settings ដើម្បីដំឡើង"
+                                                            else "Please allow 'Install unknown apps' permission to install update"
+                                                        )
+                                                        GitHubSyncHelper.openInstallUnknownAppsSettings(context)
+                                                    }
                                                 }
                                             }
                                         },
@@ -504,6 +581,59 @@ fun SettingsScreen(
                                             .fillMaxWidth()
                                             .testTag("setting_download_update_button")
                                     )
+                                }
+
+                                // Permission alert banner if Install Unknown Apps is not yet granted
+                                val hasInstallPerm = remember(context) { GitHubSyncHelper.canRequestPackageInstalls(context) }
+                                if ((releaseInfo.state == UpdateState.READY_TO_INSTALL ||
+                                        releaseInfo.state == UpdateState.INSTALLATION_REQUESTED) &&
+                                    !hasInstallPerm
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(Color(0xFFF59E0B).copy(alpha = 0.15f))
+                                            .border(1.dp, Color(0xFFF59E0B), RoundedCornerShape(14.dp))
+                                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                                            .clickable { GitHubSyncHelper.openInstallUnknownAppsSettings(context) },
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        LineIcon(type = LineIconType.SETTINGS, tint = Color(0xFFF59E0B), size = 20.dp)
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (isKm) "ត្រូវការសិទ្ធិដំឡើង (Install Permission)" else "Install Permission Required",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = tokens.textPrimary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = if (isKm) {
+                                                    "ចុចទីនេះដើម្បីបើក 'Allow from this source' សម្រាប់ GlassNotes ក្នុង Settings"
+                                                } else {
+                                                    "Tap here to enable 'Allow from this source' for GlassNotes in Android Settings"
+                                                },
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = tokens.textSecondary,
+                                                lineHeight = 16.sp
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0xFFF59E0B).copy(alpha = 0.25f))
+                                                .border(1.dp, Color(0xFFF59E0B), RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isKm) "បើក Settings" else "Settings",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color(0xFFF59E0B),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
                                 }
 
                                 // Primary Action 3: Install Update (opens Android Package Installer for verified APK)
@@ -515,14 +645,40 @@ fun SettingsScreen(
                                         icon = LineIconType.CHECK,
                                         primary = true,
                                         onClick = {
+                                            val targetPath = if (releaseInfo.verifiedApkPath.isNotBlank() && File(releaseInfo.verifiedApkPath).exists()) {
+                                                releaseInfo.verifiedApkPath
+                                            } else {
+                                                val cleanTag = releaseInfo.latestReleaseTag.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                                                val candidate = File(File(context.cacheDir, "updates"), "APPNOTE-$cleanTag.apk")
+                                                if (candidate.exists()) candidate.absolutePath else ""
+                                            }
+
+                                            if (!GitHubSyncHelper.canRequestPackageInstalls(context)) {
+                                                onShowToast(
+                                                    if (isKm) "សូមបើក 'Allow from this source' ក្នុង Settings ដើម្បីដំឡើង"
+                                                    else "Please allow 'Install unknown apps' permission to install update"
+                                                )
+                                                GitHubSyncHelper.openInstallUnknownAppsSettings(context)
+                                                return@GlassActionPill
+                                            }
+
+                                            if (targetPath.isBlank() || !File(targetPath).exists()) {
+                                                onShowToast(
+                                                    if (isKm) "រកមិនឃើញឯកសារ APK សូមទាញយកម្តងទៀត"
+                                                    else "APK not found. Please tap Download Update again."
+                                                )
+                                                return@GlassActionPill
+                                            }
+
                                             val launched = GitHubSyncHelper.launchApkPackageInstaller(
                                                 context = context,
-                                                verifiedApkPath = releaseInfo.verifiedApkPath
+                                                verifiedApkPath = targetPath
                                             )
                                             releaseInfo = if (launched) {
                                                 releaseInfo.copy(
                                                     state = UpdateState.INSTALLATION_REQUESTED,
-                                                    statusMessage = UpdateState.INSTALLATION_REQUESTED.statusTextEn
+                                                    statusMessage = UpdateState.INSTALLATION_REQUESTED.statusTextEn,
+                                                    verifiedApkPath = targetPath
                                                 )
                                             } else {
                                                 releaseInfo.copy(
@@ -550,6 +706,23 @@ fun SettingsScreen(
                                         testTag = "setting_view_release_notes_button",
                                         onClick = { showReleaseNotesDialog = true }
                                     )
+                                    if (releaseInfo.state == UpdateState.READY_TO_INSTALL ||
+                                        releaseInfo.state == UpdateState.INSTALLATION_REQUESTED
+                                    ) {
+                                        SettingsActionBtn(
+                                            label = if (isKm) "បើកជាមួយ / ចែករំលែក APK" else "Open with / Share APK",
+                                            testTag = "setting_share_apk_button",
+                                            onClick = {
+                                                val targetPath = if (releaseInfo.verifiedApkPath.isNotBlank() && File(releaseInfo.verifiedApkPath).exists()) {
+                                                    releaseInfo.verifiedApkPath
+                                                } else {
+                                                    val cleanTag = releaseInfo.latestReleaseTag.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                                                    File(File(context.cacheDir, "updates"), "APPNOTE-$cleanTag.apk").absolutePath
+                                                }
+                                                GitHubSyncHelper.shareApkFile(context, targetPath)
+                                            }
+                                        )
+                                    }
                                     SettingsActionBtn(
                                         label = if (isKm) "បង្កើត Release លើ GitHub" else "Add to Releases (GitHub)",
                                         testTag = "setting_publish_github_release_button",

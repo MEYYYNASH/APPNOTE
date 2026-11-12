@@ -112,12 +112,13 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
     var dismissedUpdateBannerForVersion by remember { mutableStateOf("") }
     val hasNewAppUpdate = detectedGitHubReleaseTag.isNotBlank()
 
-    // Query official GitHub Releases (MEY-NASHH/APPNOTE) in background; never show fake updates!
-    LaunchedEffect(state.settings.includePrereleases) {
+    // Query official GitHub Releases (MEYYYNASH/APPNOTE) in background; never show fake updates!
+    LaunchedEffect(state.settings.includePrereleases, state.settings.githubToken) {
         val result = GitHubSyncHelper.checkGitHubReleaseUpdate(
             context = context,
             includePrerelease = state.settings.includePrereleases,
-            notifyOnNewRelease = true
+            notifyOnNewRelease = true,
+            token = state.settings.githubToken
         )
         if (result.hasNewUpdate) {
             detectedGitHubReleaseTag = result.latestReleaseTag

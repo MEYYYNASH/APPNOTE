@@ -6,6 +6,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.util.Base64
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
@@ -73,8 +74,64 @@ object GitHubSyncHelper {
         "github.com",
         "api.github.com",
         "objects.githubusercontent.com",
-        "release-assets.githubusercontent.com"
+        "release-assets.githubusercontent.com",
+        "raw.githubusercontent.com",
+        "codeload.github.com"
     )
+
+    data class AtomReleaseEntry(
+        val tag: String,
+        val title: String,
+        val updated: String,
+        val contentHtml: String,
+        val htmlUrl: String
+    )
+
+    fun parseAtomFeed(xml: String): List<AtomReleaseEntry> {
+        val entries = mutableListOf<AtomReleaseEntry>()
+        val entryRegex = Regex("<entry[\\s>]([\\s\\S]*?)</entry>", RegexOption.IGNORE_CASE)
+        val titleRegex = Regex("<title[^>]*>([\\s\\S]*?)</title>", RegexOption.IGNORE_CASE)
+        val updatedRegex = Regex("<updated[^>]*>([\\s\\S]*?)</updated>", RegexOption.IGNORE_CASE)
+        val linkRegex = Regex("<link[^>]+href=[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
+        val contentRegex = Regex("<content[^>]*>([\\s\\S]*?)</content>", RegexOption.IGNORE_CASE)
+
+        for (match in entryRegex.findAll(xml)) {
+            val entryBlock = match.groupValues[1]
+            val title = titleRegex.find(entryBlock)?.groupValues?.getOrNull(1)?.trim().orEmpty()
+            val updated = updatedRegex.find(entryBlock)?.groupValues?.getOrNull(1)?.trim().orEmpty()
+            val link = linkRegex.find(entryBlock)?.groupValues?.getOrNull(1)?.trim().orEmpty()
+            val rawContent = contentRegex.find(entryBlock)?.groupValues?.getOrNull(1)?.trim().orEmpty()
+            val content = unescapeXml(rawContent)
+            val tag = if (link.contains("/tag/")) {
+                link.substringAfter("/tag/").substringBefore("?").trim()
+            } else {
+                val idMatch = Regex("Repository/\\d+/(.+)", RegexOption.IGNORE_CASE).find(entryBlock)
+                idMatch?.groupValues?.getOrNull(1)?.trim().orEmpty()
+            }
+            if (tag.isNotBlank()) {
+                entries.add(
+                    AtomReleaseEntry(
+                        tag = tag,
+                        title = title.ifBlank { "APPNOTE $tag" },
+                        updated = updated,
+                        contentHtml = content,
+                        htmlUrl = link.ifBlank { "$OFFICIAL_REPO_URL/releases/tag/$tag" }
+                    )
+                )
+            }
+        }
+        return entries
+    }
+
+    fun unescapeXml(text: String): String {
+        return text
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&apos;", "'")
+            .replace("&#39;", "'")
+            .replace("&amp;", "&")
+    }
 
     fun parseVersionParts(version: String): List<Int> {
         val clean = version.trim().removePrefix("v").removePrefix("V")
@@ -180,10 +237,16 @@ object GitHubSyncHelper {
     suspend fun checkGitHubReleaseUpdate(
         context: Context,
         includePrerelease: Boolean = false,
-        notifyOnNewRelease: Boolean = true
+        notifyOnNewRelease: Boolean = true,
+        token: String = ""
     ): GitHubReleaseInfo = withContext(Dispatchers.IO) {
         val installed = getInstalledAppInfo(context)
+        val cleanToken = token.trim()
 
+        var apiRateLimited = false
+        var apiErrorCode = 0
+
+        // Tier 1: Try official GitHub REST API (if user entered GitHub token, allows 5,000 req/hr)
         try {
             val url = URL("$RELEASES_API_URL?per_page=15")
             val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -193,12 +256,19 @@ object GitHubSyncHelper {
                 setRequestProperty("Accept", "application/vnd.github+json")
                 setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
                 setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+                if (cleanToken.isNotBlank()) {
+                    setRequestProperty("Authorization", "Bearer $cleanToken")
+                }
             }
 
             val code = conn.responseCode
-            if (code == 404) {
+            apiErrorCode = code
+            if (code == 403 || code == 429) {
+                // Rate limited by GitHub REST API (60 req/hr IP limit exceeded on mobile carrier NAT)
+                apiRateLimited = true
                 conn.disconnect()
-                // Repository has no published releases or is not yet public -> No update
+            } else if (code == 404) {
+                conn.disconnect()
                 return@withContext GitHubReleaseInfo(
                     state = UpdateState.UP_TO_DATE,
                     statusMessage = UpdateState.UP_TO_DATE.statusTextEn,
@@ -209,209 +279,459 @@ object GitHubSyncHelper {
                     releaseDate = "—",
                     releaseNotes = "No published GitHub Releases found in $OFFICIAL_REPO_SLUG."
                 )
-            }
-
-            if (code !in 200..299) {
+            } else if (code in 200..299) {
+                val bodyText = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                 conn.disconnect()
-                return@withContext GitHubReleaseInfo(
-                    state = UpdateState.FAILED,
-                    statusMessage = UpdateState.FAILED.statusTextEn,
-                    hasNewUpdate = false,
-                    installedVersionName = installed.versionName,
-                    installedVersionCode = installed.versionCode,
-                    latestReleaseTag = "Unavailable (HTTP $code)",
-                    releaseDate = "—",
-                    errorDetail = "GitHub Releases API returned HTTP $code"
-                )
-            }
 
-            val bodyText = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            conn.disconnect()
+                val releasesArray = JSONArray(bodyText)
+                var candidateRelease: JSONObject? = null
 
-            val releasesArray = JSONArray(bodyText)
-            var candidateRelease: JSONObject? = null
+                for (i in 0 until releasesArray.length()) {
+                    val rel = releasesArray.optJSONObject(i) ?: continue
+                    val isDraft = rel.optBoolean("draft", false)
+                    val isPrerelease = rel.optBoolean("prerelease", false)
 
-            for (i in 0 until releasesArray.length()) {
-                val rel = releasesArray.optJSONObject(i) ?: continue
-                val isDraft = rel.optBoolean("draft", false)
-                val isPrerelease = rel.optBoolean("prerelease", false)
+                    if (isDraft) continue
+                    if (isPrerelease && !includePrerelease) continue
 
-                // Rule 3 & 7: Never show draft releases; ignore prereleases unless explicitly enabled
-                if (isDraft) continue
-                if (isPrerelease && !includePrerelease) continue
+                    val tagName = rel.optString("tag_name", "").trim()
+                    if (tagName.isBlank()) continue
 
-                val tagName = rel.optString("tag_name", "").trim()
-                if (tagName.isBlank()) continue
+                    candidateRelease = rel
+                    break
+                }
 
-                candidateRelease = rel
-                break
-            }
+                if (candidateRelease != null) {
+                    val tagName = candidateRelease.optString("tag_name", "").trim()
+                    val releaseName = candidateRelease.optString("name", tagName).ifBlank { tagName }
+                    val publishedAtRaw = candidateRelease.optString("published_at", "")
+                    val releaseDate = formatIsoDate(publishedAtRaw)
+                    val releaseBody = candidateRelease.optString("body", "").trim()
+                    val htmlUrl = candidateRelease.optString("html_url", OFFICIAL_REPO_URL).ifBlank { OFFICIAL_REPO_URL }
+                    val isPre = candidateRelease.optBoolean("prerelease", false)
 
-            if (candidateRelease == null) {
-                return@withContext GitHubReleaseInfo(
-                    state = UpdateState.UP_TO_DATE,
-                    statusMessage = UpdateState.UP_TO_DATE.statusTextEn,
-                    hasNewUpdate = false,
-                    installedVersionName = installed.versionName,
-                    installedVersionCode = installed.versionCode,
-                    latestReleaseTag = "No published release",
-                    releaseDate = "—",
-                    releaseNotes = "No stable published release exists in $OFFICIAL_REPO_SLUG yet."
-                )
-            }
+                    val assets = candidateRelease.optJSONArray("assets") ?: JSONArray()
+                    var apkDownloadUrl = ""
+                    var apkFileName = ""
+                    var apkSizeBytes = 0L
+                    var assetDigestSha256 = ""
+                    var sha256AssetUrl = ""
+                    var metadataAssetUrl = ""
 
-            val tagName = candidateRelease.optString("tag_name", "").trim()
-            val releaseName = candidateRelease.optString("name", tagName).ifBlank { tagName }
-            val publishedAtRaw = candidateRelease.optString("published_at", "")
-            val releaseDate = formatIsoDate(publishedAtRaw)
-            val releaseBody = candidateRelease.optString("body", "").trim()
-            val htmlUrl = candidateRelease.optString("html_url", OFFICIAL_REPO_URL).ifBlank { OFFICIAL_REPO_URL }
-            val isPre = candidateRelease.optBoolean("prerelease", false)
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.optJSONObject(i) ?: continue
+                        val name = asset.optString("name", "")
+                        val dlUrl = asset.optString("browser_download_url", "")
+                        val digest = asset.optString("digest", "")
 
-            // Inspect assets for signed .apk, .sha256, and release-metadata.json
-            val assets = candidateRelease.optJSONArray("assets") ?: JSONArray()
-            var apkDownloadUrl = ""
-            var apkFileName = ""
-            var apkSizeBytes = 0L
-            var assetDigestSha256 = ""
-            var sha256AssetUrl = ""
-            var metadataAssetUrl = ""
-
-            for (i in 0 until assets.length()) {
-                val asset = assets.optJSONObject(i) ?: continue
-                val name = asset.optString("name", "")
-                val dlUrl = asset.optString("browser_download_url", "")
-                val digest = asset.optString("digest", "")
-
-                when {
-                    name.endsWith(".apk", ignoreCase = true) && apkDownloadUrl.isBlank() -> {
-                        apkDownloadUrl = dlUrl
-                        apkFileName = name
-                        apkSizeBytes = asset.optLong("size", 0L)
-                        if (digest.startsWith("sha256:", ignoreCase = true)) {
-                            assetDigestSha256 = digest.substringAfter(":").trim()
+                        when {
+                            name.endsWith(".apk", ignoreCase = true) && apkDownloadUrl.isBlank() -> {
+                                apkDownloadUrl = dlUrl
+                                apkFileName = name
+                                apkSizeBytes = asset.optLong("size", 0L)
+                                if (digest.startsWith("sha256:", ignoreCase = true)) {
+                                    assetDigestSha256 = digest.substringAfter(":").trim()
+                                }
+                            }
+                            name.endsWith(".sha256", ignoreCase = true) -> sha256AssetUrl = dlUrl
+                            name.equals("release-metadata.json", ignoreCase = true) -> metadataAssetUrl = dlUrl
                         }
                     }
-                    name.endsWith(".sha256", ignoreCase = true) -> {
-                        sha256AssetUrl = dlUrl
+
+                    var remoteVersionCode = deriveVersionCodeFromTag(tagName)
+                    var expectedSha256 = assetDigestSha256.ifBlank { extractSha256FromText(releaseBody) }
+                    var expectedSigningCertSha256 = ""
+
+                    if (metadataAssetUrl.isNotBlank() && isTrustedHttpsUrl(metadataAssetUrl)) {
+                        val metaText = fetchSmallTextHttps(metadataAssetUrl, cleanToken)
+                        if (metaText.isNotBlank()) {
+                            try {
+                                val metaJson = JSONObject(metaText)
+                                val metaCode = metaJson.optLong("versionCode", 0L)
+                                if (metaCode > 0L) remoteVersionCode = metaCode
+                                val metaSha = metaJson.optString("sha256", "").trim()
+                                if (metaSha.length == 64) expectedSha256 = metaSha
+                                val metaCert = metaJson.optString("signingCertSha256", "").replace(":", "").trim().lowercase()
+                                if (metaCert.length == 64) expectedSigningCertSha256 = metaCert
+                            } catch (_: Exception) {
+                            }
+                        }
                     }
-                    name.equals("release-metadata.json", ignoreCase = true) -> {
-                        metadataAssetUrl = dlUrl
+
+                    if (expectedSha256.isBlank() && sha256AssetUrl.isNotBlank() && isTrustedHttpsUrl(sha256AssetUrl)) {
+                        val shaText = fetchSmallTextHttps(sha256AssetUrl, cleanToken)
+                        val parsedSha = extractSha256FromText(shaText)
+                        if (parsedSha.length == 64) expectedSha256 = parsedSha
                     }
+
+                    if (apkDownloadUrl.isBlank()) {
+                        apkDownloadUrl = "$OFFICIAL_REPO_URL/releases/download/$tagName/app-release.apk"
+                        apkFileName = "app-release.apk"
+                    }
+
+                    val versionNameComparison = compareVersions(tagName, installed.versionName)
+                    val isNewerRelease = versionNameComparison > 0 && remoteVersionCode >= installed.versionCode
+
+                    if (!isNewerRelease) {
+                        return@withContext GitHubReleaseInfo(
+                            state = UpdateState.UP_TO_DATE,
+                            statusMessage = UpdateState.UP_TO_DATE.statusTextEn,
+                            hasNewUpdate = false,
+                            installedVersionName = installed.versionName,
+                            installedVersionCode = installed.versionCode,
+                            latestReleaseTag = tagName,
+                            latestVersionCode = remoteVersionCode,
+                            releaseName = releaseName,
+                            releaseDate = releaseDate,
+                            releaseNotes = releaseBody.ifBlank { "Release $tagName" },
+                            apkDownloadUrl = apkDownloadUrl,
+                            apkFileName = apkFileName,
+                            apkSizeBytes = apkSizeBytes,
+                            expectedSha256 = expectedSha256,
+                            expectedSigningCertSha256 = expectedSigningCertSha256,
+                            htmlUrl = htmlUrl,
+                            isPrerelease = isPre
+                        )
+                    }
+
+                    if (notifyOnNewRelease) {
+                        ReminderScheduler.showNewVersionNotification(
+                            context = context,
+                            newVersion = tagName.removePrefix("v"),
+                            changelog = releaseBody.lines().firstOrNull { it.isNotBlank() }
+                                ?: "APPNOTE $tagName is available on GitHub Releases."
+                        )
+                    }
+
+                    return@withContext GitHubReleaseInfo(
+                        state = UpdateState.UPDATE_AVAILABLE,
+                        statusMessage = UpdateState.UPDATE_AVAILABLE.statusTextEn,
+                        hasNewUpdate = true,
+                        installedVersionName = installed.versionName,
+                        installedVersionCode = installed.versionCode,
+                        latestReleaseTag = tagName,
+                        latestVersionCode = remoteVersionCode,
+                        releaseName = releaseName,
+                        releaseDate = releaseDate,
+                        releaseNotes = releaseBody.ifBlank { "APPNOTE $tagName published on GitHub Releases." },
+                        apkDownloadUrl = apkDownloadUrl,
+                        apkFileName = apkFileName.ifBlank { "app-release.apk" },
+                        apkSizeBytes = apkSizeBytes,
+                        expectedSha256 = expectedSha256,
+                        expectedSigningCertSha256 = expectedSigningCertSha256,
+                        htmlUrl = htmlUrl,
+                        isPrerelease = isPre
+                    )
+                } else {
+                    return@withContext GitHubReleaseInfo(
+                        state = UpdateState.UP_TO_DATE,
+                        statusMessage = UpdateState.UP_TO_DATE.statusTextEn,
+                        hasNewUpdate = false,
+                        installedVersionName = installed.versionName,
+                        installedVersionCode = installed.versionCode,
+                        latestReleaseTag = "No published release",
+                        releaseDate = "—",
+                        releaseNotes = "No stable published release exists in $OFFICIAL_REPO_SLUG yet."
+                    )
                 }
+            } else {
+                conn.disconnect()
             }
+        } catch (_: Exception) {
+        }
 
-            // Optional fetch of release-metadata.json or .sha256 for explicit versionCode and SHA-256
-            var remoteVersionCode = deriveVersionCodeFromTag(tagName)
-            var expectedSha256 = assetDigestSha256.ifBlank { extractSha256FromText(releaseBody) }
-            var expectedSigningCertSha256 = ""
-
-            if (metadataAssetUrl.isNotBlank() && isTrustedHttpsUrl(metadataAssetUrl)) {
-                try {
-                    val metaText = fetchSmallTextHttps(metadataAssetUrl)
-                    val metaJson = JSONObject(metaText)
-                    val metaCode = metaJson.optLong("versionCode", 0L)
-                    if (metaCode > 0L) remoteVersionCode = metaCode
-                    val metaSha = metaJson.optString("sha256", "").trim()
-                    if (metaSha.length == 64) expectedSha256 = metaSha
-                    val metaCert = metaJson.optString("signingCertSha256", "").replace(":", "").trim().lowercase()
-                    if (metaCert.length == 64) expectedSigningCertSha256 = metaCert
-                } catch (_: Exception) {
-                }
+        // Tier 2: Seamless fallback to GitHub Atom Feed (releases.atom)
+        // Public, cached web feed from github.com - NOT subject to the 60 req/hr REST API rate limit!
+        try {
+            val atomInfo = checkReleaseViaAtomFeed(
+                context = context,
+                installed = installed,
+                includePrerelease = includePrerelease,
+                notifyOnNewRelease = notifyOnNewRelease,
+                token = cleanToken
+            )
+            if (atomInfo != null) {
+                return@withContext atomInfo
             }
+        } catch (_: Exception) {
+        }
 
-            if (expectedSha256.isBlank() && sha256AssetUrl.isNotBlank() && isTrustedHttpsUrl(sha256AssetUrl)) {
-                try {
-                    val shaText = fetchSmallTextHttps(sha256AssetUrl)
-                    val parsedSha = extractSha256FromText(shaText)
-                    if (parsedSha.length == 64) expectedSha256 = parsedSha
-                } catch (_: Exception) {
-                }
+        // Tier 3: Seamless fallback to GitHub Web Releases Latest Redirect (https://github.com/MEYYYNASH/APPNOTE/releases/latest)
+        try {
+            val webLatestInfo = checkReleaseViaWebRedirect(
+                context = context,
+                installed = installed,
+                notifyOnNewRelease = notifyOnNewRelease,
+                token = cleanToken
+            )
+            if (webLatestInfo != null) {
+                return@withContext webLatestInfo
             }
+        } catch (_: Exception) {
+        }
 
-            // Compare both semantic version tag and versionCode (Never install older or same version)
-            val versionNameComparison = compareVersions(tagName, installed.versionName)
-            val isNewerRelease = versionNameComparison > 0 && remoteVersionCode >= installed.versionCode
+        val failDetail = if (apiRateLimited || apiErrorCode == 403) {
+            "GitHub API rate limit exceeded on this network (HTTP 403). Enter your GitHub Personal Access Token in Settings or check back in a few minutes."
+        } else if (apiErrorCode > 0) {
+            "GitHub Releases returned HTTP $apiErrorCode. Please check your network connection."
+        } else {
+            "Could not connect to GitHub. Please check your network connection."
+        }
 
-            if (!isNewerRelease) {
-                return@withContext GitHubReleaseInfo(
-                    state = UpdateState.UP_TO_DATE,
-                    statusMessage = UpdateState.UP_TO_DATE.statusTextEn,
-                    hasNewUpdate = false,
-                    installedVersionName = installed.versionName,
-                    installedVersionCode = installed.versionCode,
-                    latestReleaseTag = tagName,
-                    latestVersionCode = remoteVersionCode,
-                    releaseName = releaseName,
-                    releaseDate = releaseDate,
-                    releaseNotes = releaseBody.ifBlank { "Release $tagName" },
-                    apkDownloadUrl = apkDownloadUrl,
-                    apkFileName = apkFileName,
-                    apkSizeBytes = apkSizeBytes,
-                    expectedSha256 = expectedSha256,
-                    expectedSigningCertSha256 = expectedSigningCertSha256,
-                    htmlUrl = htmlUrl,
-                    isPrerelease = isPre
-                )
+        GitHubReleaseInfo(
+            state = UpdateState.FAILED,
+            statusMessage = UpdateState.FAILED.statusTextEn,
+            hasNewUpdate = false,
+            installedVersionName = installed.versionName,
+            installedVersionCode = installed.versionCode,
+            latestReleaseTag = if (apiErrorCode == 403) "Rate limited (HTTP 403)" else "Check failed",
+            releaseDate = "—",
+            errorDetail = failDetail
+        )
+    }
+
+    private fun checkReleaseViaAtomFeed(
+        context: Context,
+        installed: InstalledAppVersionInfo,
+        includePrerelease: Boolean,
+        notifyOnNewRelease: Boolean,
+        token: String
+    ): GitHubReleaseInfo? {
+        val atomUrl = "$OFFICIAL_REPO_URL/releases.atom"
+        val xmlText = fetchSmallTextHttps(atomUrl, token).ifBlank { return null }
+
+        val entries = parseAtomFeed(xmlText)
+        if (entries.isEmpty()) {
+            return GitHubReleaseInfo(
+                state = UpdateState.UP_TO_DATE,
+                statusMessage = UpdateState.UP_TO_DATE.statusTextEn,
+                hasNewUpdate = false,
+                installedVersionName = installed.versionName,
+                installedVersionCode = installed.versionCode,
+                latestReleaseTag = "No published release",
+                releaseDate = "—",
+                releaseNotes = "No published GitHub Releases found in $OFFICIAL_REPO_SLUG."
+            )
+        }
+
+        var candidate: AtomReleaseEntry? = null
+        for (entry in entries) {
+            val isPre = entry.title.contains("prerelease", ignoreCase = true) ||
+                    entry.tag.contains("alpha", ignoreCase = true) ||
+                    entry.tag.contains("beta", ignoreCase = true) ||
+                    entry.tag.contains("rc", ignoreCase = true)
+            if (isPre && !includePrerelease) continue
+            candidate = entry
+            break
+        }
+        val target = candidate ?: entries.first()
+        val tagName = target.tag
+        val releaseName = target.title.ifBlank { "APPNOTE $tagName" }
+        val releaseDate = formatIsoDate(target.updated)
+        val releaseBody = target.contentHtml
+
+        // Try to fetch release-metadata.json for exact versionCode and SHA-256
+        val metaUrl = "$OFFICIAL_REPO_URL/releases/download/$tagName/release-metadata.json"
+        val metaText = fetchSmallTextHttps(metaUrl, token)
+
+        var remoteVersionCode = deriveVersionCodeFromTag(tagName)
+        var expectedSha256 = extractSha256FromText(releaseBody)
+        var expectedSigningCertSha256 = ""
+        var apkFileName = "app-release.apk"
+
+        if (metaText.isNotBlank()) {
+            try {
+                val metaJson = JSONObject(metaText)
+                val metaCode = metaJson.optLong("versionCode", 0L)
+                if (metaCode > 0L) remoteVersionCode = metaCode
+                val metaSha = metaJson.optString("sha256", "").trim()
+                if (metaSha.length == 64) expectedSha256 = metaSha
+                val metaCert = metaJson.optString("signingCertSha256", "").replace(":", "").trim().lowercase()
+                if (metaCert.length == 64) expectedSigningCertSha256 = metaCert
+                val metaApkName = metaJson.optString("apkFileName", "")
+                if (metaApkName.isNotBlank()) apkFileName = metaApkName
+            } catch (_: Exception) {
             }
+        }
 
-            if (notifyOnNewRelease) {
-                ReminderScheduler.showNewVersionNotification(
-                    context = context,
-                    newVersion = tagName.removePrefix("v"),
-                    changelog = releaseBody.lines().firstOrNull { it.isNotBlank() }
-                        ?: "APPNOTE $tagName is available on GitHub Releases."
-                )
+        // If versionCode was not in metadata, extract from HTML body
+        if (remoteVersionCode == deriveVersionCodeFromTag(tagName)) {
+            val vcMatch = Regex("Version Code:.*?(\\d+)", RegexOption.IGNORE_CASE).find(releaseBody)
+            val extractedVc = vcMatch?.groupValues?.getOrNull(1)?.toLongOrNull()
+            if (extractedVc != null && extractedVc > 0L) {
+                remoteVersionCode = extractedVc
             }
+        }
 
-            GitHubReleaseInfo(
-                state = UpdateState.UPDATE_AVAILABLE,
-                statusMessage = UpdateState.UPDATE_AVAILABLE.statusTextEn,
-                hasNewUpdate = true,
+        val apkDownloadUrl = "$OFFICIAL_REPO_URL/releases/download/$tagName/$apkFileName"
+        val versionNameComparison = compareVersions(tagName, installed.versionName)
+        val isNewerRelease = versionNameComparison > 0 && remoteVersionCode >= installed.versionCode
+
+        if (!isNewerRelease) {
+            return GitHubReleaseInfo(
+                state = UpdateState.UP_TO_DATE,
+                statusMessage = UpdateState.UP_TO_DATE.statusTextEn,
+                hasNewUpdate = false,
                 installedVersionName = installed.versionName,
                 installedVersionCode = installed.versionCode,
                 latestReleaseTag = tagName,
                 latestVersionCode = remoteVersionCode,
                 releaseName = releaseName,
                 releaseDate = releaseDate,
-                releaseNotes = releaseBody.ifBlank { "APPNOTE $tagName published on GitHub Releases." },
+                releaseNotes = releaseBody.replace(Regex("<[^>]+>"), " ").trim().ifBlank { "Release $tagName" },
                 apkDownloadUrl = apkDownloadUrl,
-                apkFileName = apkFileName.ifBlank { "app-release.apk" },
-                apkSizeBytes = apkSizeBytes,
+                apkFileName = apkFileName,
                 expectedSha256 = expectedSha256,
                 expectedSigningCertSha256 = expectedSigningCertSha256,
-                htmlUrl = htmlUrl,
-                isPrerelease = isPre
+                htmlUrl = target.htmlUrl.ifBlank { "$OFFICIAL_REPO_URL/releases/tag/$tagName" },
+                isPrerelease = false
             )
-        } catch (e: Exception) {
-            GitHubReleaseInfo(
-                state = UpdateState.FAILED,
-                statusMessage = UpdateState.FAILED.statusTextEn,
+        }
+
+        if (notifyOnNewRelease) {
+            ReminderScheduler.showNewVersionNotification(
+                context = context,
+                newVersion = tagName.removePrefix("v"),
+                changelog = releaseBody.replace(Regex("<[^>]+>"), " ").lines().firstOrNull { it.isNotBlank() }
+                    ?: "APPNOTE $tagName is available on GitHub Releases."
+            )
+        }
+
+        return GitHubReleaseInfo(
+            state = UpdateState.UPDATE_AVAILABLE,
+            statusMessage = UpdateState.UPDATE_AVAILABLE.statusTextEn,
+            hasNewUpdate = true,
+            installedVersionName = installed.versionName,
+            installedVersionCode = installed.versionCode,
+            latestReleaseTag = tagName,
+            latestVersionCode = remoteVersionCode,
+            releaseName = releaseName,
+            releaseDate = releaseDate,
+            releaseNotes = releaseBody.replace(Regex("<[^>]+>"), " ").trim().ifBlank { "APPNOTE $tagName published on GitHub Releases." },
+            apkDownloadUrl = apkDownloadUrl,
+            apkFileName = apkFileName,
+            expectedSha256 = expectedSha256,
+            expectedSigningCertSha256 = expectedSigningCertSha256,
+            htmlUrl = target.htmlUrl.ifBlank { "$OFFICIAL_REPO_URL/releases/tag/$tagName" },
+            isPrerelease = false
+        )
+    }
+
+    private fun checkReleaseViaWebRedirect(
+        context: Context,
+        installed: InstalledAppVersionInfo,
+        notifyOnNewRelease: Boolean,
+        token: String
+    ): GitHubReleaseInfo? {
+        val latestUrl = "$OFFICIAL_REPO_URL/releases/latest"
+        var targetUrl = ""
+        var redirects = 0
+        var currentUrl = latestUrl
+
+        while (redirects < 6) {
+            val conn = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                instanceFollowRedirects = false
+                connectTimeout = 8000
+                readTimeout = 8000
+                setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+            }
+            val code = conn.responseCode
+            if (code in 300..399) {
+                val loc = conn.getHeaderField("Location")
+                conn.disconnect()
+                if (!loc.isNullOrBlank()) {
+                    currentUrl = loc
+                    redirects++
+                    if (loc.contains("/tag/")) {
+                        targetUrl = loc
+                        break
+                    }
+                    continue
+                }
+            } else if (code in 200..299) {
+                targetUrl = currentUrl
+                conn.disconnect()
+                break
+            } else {
+                conn.disconnect()
+                break
+            }
+        }
+
+        if (!targetUrl.contains("/tag/")) return null
+        val tagName = targetUrl.substringAfter("/tag/").substringBefore("?").trim()
+        if (tagName.isBlank()) return null
+
+        val remoteVersionCode = deriveVersionCodeFromTag(tagName)
+        val apkDownloadUrl = "$OFFICIAL_REPO_URL/releases/download/$tagName/app-release.apk"
+        val versionNameComparison = compareVersions(tagName, installed.versionName)
+        val isNewerRelease = versionNameComparison > 0 && remoteVersionCode >= installed.versionCode
+
+        if (!isNewerRelease) {
+            return GitHubReleaseInfo(
+                state = UpdateState.UP_TO_DATE,
+                statusMessage = UpdateState.UP_TO_DATE.statusTextEn,
                 hasNewUpdate = false,
                 installedVersionName = installed.versionName,
                 installedVersionCode = installed.versionCode,
-                latestReleaseTag = "Check failed",
-                releaseDate = "—",
-                errorDetail = e.localizedMessage ?: "Network connection error"
+                latestReleaseTag = tagName,
+                latestVersionCode = remoteVersionCode,
+                releaseName = "APPNOTE $tagName",
+                releaseDate = "Latest",
+                apkDownloadUrl = apkDownloadUrl,
+                apkFileName = "app-release.apk",
+                htmlUrl = "$OFFICIAL_REPO_URL/releases/tag/$tagName"
             )
         }
+
+        if (notifyOnNewRelease) {
+            ReminderScheduler.showNewVersionNotification(
+                context = context,
+                newVersion = tagName.removePrefix("v"),
+                changelog = "APPNOTE $tagName is available on GitHub Releases."
+            )
+        }
+
+        return GitHubReleaseInfo(
+            state = UpdateState.UPDATE_AVAILABLE,
+            statusMessage = UpdateState.UPDATE_AVAILABLE.statusTextEn,
+            hasNewUpdate = true,
+            installedVersionName = installed.versionName,
+            installedVersionCode = installed.versionCode,
+            latestReleaseTag = tagName,
+            latestVersionCode = remoteVersionCode,
+            releaseName = "APPNOTE $tagName",
+            releaseDate = "Latest",
+            apkDownloadUrl = apkDownloadUrl,
+            apkFileName = "app-release.apk",
+            htmlUrl = "$OFFICIAL_REPO_URL/releases/tag/$tagName"
+        )
     }
 
     /**
      * Downloads the signed APK from the official GitHub Release over HTTPS, verifies its SHA-256
      * checksum, verifies that the APK archive is valid, checks that its versionCode is newer than
      * the installed versionCode, and verifies that the APK signing certificate matches the installed app.
+     * Follows HTTP cross-domain redirects manually to prevent 302 errors when redirected to storage blobs.
      */
     @Suppress("DEPRECATION")
     suspend fun downloadAndVerifyReleaseApk(
         context: Context,
         releaseInfo: GitHubReleaseInfo,
+        token: String = "",
         onStateChange: (UpdateState, Int, String) -> Unit
     ): GitHubReleaseInfo = withContext(Dispatchers.IO) {
         val installed = getInstalledAppInfo(context)
-        val downloadUrl = releaseInfo.apkDownloadUrl.trim()
+        val cleanToken = token.trim()
 
-        if (downloadUrl.isBlank() || !isTrustedHttpsUrl(downloadUrl)) {
+        val candidateUrls = listOf(
+            releaseInfo.apkDownloadUrl.trim(),
+            "$OFFICIAL_REPO_URL/releases/download/${releaseInfo.latestReleaseTag}/app-release.apk",
+            "$OFFICIAL_REPO_URL/releases/download/${releaseInfo.latestReleaseTag}/GlassNotes.apk"
+        ).filter { it.isNotBlank() && isTrustedHttpsUrl(it) }.distinct()
+
+        if (candidateUrls.isEmpty()) {
             return@withContext releaseInfo.copy(
                 state = UpdateState.FAILED,
                 statusMessage = UpdateState.FAILED.statusTextEn,
@@ -426,25 +746,57 @@ object GitHubSyncHelper {
         try {
             onStateChange(UpdateState.DOWNLOADING, 0, UpdateState.DOWNLOADING.statusTextEn)
 
-            val conn = (URL(downloadUrl).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                instanceFollowRedirects = true
-                connectTimeout = 15000
-                readTimeout = 30000
-                setRequestProperty("Accept", "application/octet-stream")
-                setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+            var activeConn: HttpURLConnection? = null
+            var connectedDownloadUrl = ""
+
+            for (candidateUrl in candidateUrls) {
+                var currentUrl = candidateUrl
+                var redirects = 0
+                while (redirects < 8) {
+                    val c = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        instanceFollowRedirects = false
+                        connectTimeout = 15000
+                        readTimeout = 45000
+                        setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+                        if (currentUrl.contains("api.github.com") && cleanToken.isNotBlank()) {
+                            setRequestProperty("Authorization", "Bearer $cleanToken")
+                            setRequestProperty("Accept", "application/octet-stream")
+                        } else {
+                            setRequestProperty("Accept", "application/octet-stream, application/vnd.android.package-archive, */*")
+                        }
+                    }
+                    val code = c.responseCode
+                    if (code in 300..399) {
+                        val location = c.getHeaderField("Location")
+                        c.disconnect()
+                        if (!location.isNullOrBlank() && isTrustedHttpsUrl(location)) {
+                            currentUrl = location
+                            redirects++
+                            continue
+                        }
+                    }
+                    if (code in 200..299) {
+                        activeConn = c
+                        connectedDownloadUrl = currentUrl
+                        break
+                    } else {
+                        c.disconnect()
+                        break
+                    }
+                }
+                if (activeConn != null) break
             }
 
-            if (conn.responseCode !in 200..299) {
-                val code = conn.responseCode
-                conn.disconnect()
+            if (activeConn == null) {
                 return@withContext releaseInfo.copy(
                     state = UpdateState.FAILED,
                     statusMessage = UpdateState.FAILED.statusTextEn,
-                    errorDetail = "APK download failed with HTTP $code"
+                    errorDetail = "Unable to download APK asset from release ${releaseInfo.latestReleaseTag}."
                 )
             }
 
+            val conn = activeConn
             val totalBytes = conn.contentLengthLong.takeIf { it > 0L } ?: releaseInfo.apkSizeBytes
             val digest = MessageDigest.getInstance("SHA-256")
 
@@ -555,7 +907,7 @@ object GitHubSyncHelper {
                 releaseInfo.expectedSigningCertSha256.isBlank() &&
                 !archiveCertSha256.equals(installedCertSha256, ignoreCase = true)
             ) {
-                // Still allow installation handoff to Android Package Installer when downloaded from trusted OFFICIAL_REPO_SLUG
+                // Handoff to Android Package Installer when downloaded from trusted OFFICIAL_REPO_SLUG
             }
 
             releaseInfo.copy(
@@ -576,27 +928,131 @@ object GitHubSyncHelper {
     }
 
     /**
+     * Checks if the app has permission to request package installations.
+     * On Android 8.0+ (API 26+), requires android.permission.REQUEST_INSTALL_PACKAGES
+     * and user toggle "Allow from this source".
+     */
+    fun canRequestPackageInstalls(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+    }
+
+    /**
+     * Opens Android System Settings to grant "Install unknown apps" permission for this app.
+     */
+    fun openInstallUnknownAppsSettings(context: Context) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            }
+        } catch (_: Exception) {
+            try {
+                val intent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    /**
      * Opens the Android Package Installer for the verified APK file using FileProvider.
+     * Grants URI read permissions to matching installer components and falls back if needed.
      */
     fun launchApkPackageInstaller(context: Context, verifiedApkPath: String): Boolean {
         return try {
             val apkFile = File(verifiedApkPath)
-            if (!apkFile.exists() || !apkFile.canRead()) return false
+            if (!apkFile.exists() || !apkFile.canRead() || apkFile.length() < 1024L) return false
 
             val apkUri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
                 apkFile
             )
+
+            // Primary install intent using standard Android ACTION_VIEW
             val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
+
+            // Explicitly grant read permission to package installer activities
+            try {
+                val resolvedActivities = context.packageManager.queryIntentActivities(
+                    installIntent,
+                    PackageManager.MATCH_DEFAULT_ONLY
+                )
+                for (resolveInfo in resolvedActivities) {
+                    val targetPkg = resolveInfo.activityInfo.packageName
+                    context.grantUriPermission(
+                        targetPkg,
+                        apkUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
+            } catch (_: Exception) {
+            }
+
             context.startActivity(installIntent)
             true
+        } catch (e: Exception) {
+            // Secondary fallback: ACTION_INSTALL_PACKAGE
+            try {
+                val apkFile = File(verifiedApkPath)
+                val apkUri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    apkFile
+                )
+                @Suppress("DEPRECATION")
+                val fallbackIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                    data = apkUri
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, false)
+                    putExtra(Intent.EXTRA_RETURN_RESULT, true)
+                }
+                context.startActivity(fallbackIntent)
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    /**
+     * Shares or opens the downloaded APK via standard system chooser so user can open with any installer.
+     */
+    fun shareApkFile(context: Context, verifiedApkPath: String) {
+        try {
+            val apkFile = File(verifiedApkPath)
+            if (!apkFile.exists() || !apkFile.canRead()) return
+            val apkUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                apkFile
+            )
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/vnd.android.package-archive"
+                putExtra(Intent.EXTRA_STREAM, apkUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val chooser = Intent.createChooser(shareIntent, "Open or share APK with...")
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
         } catch (_: Exception) {
-            false
         }
     }
 
@@ -977,7 +1433,8 @@ object GitHubSyncHelper {
             checkGitHubReleaseUpdate(
                 context = context,
                 includePrerelease = false,
-                notifyOnNewRelease = true
+                notifyOnNewRelease = true,
+                token = cleanToken
             )
         } catch (e: Exception) {
             GitHubReleaseInfo(
@@ -1080,28 +1537,54 @@ object GitHubSyncHelper {
             val parsed = Uri.parse(url.trim())
             val scheme = parsed.scheme?.lowercase()
             val host = parsed.host?.lowercase() ?: return false
-            scheme == "https" && (TRUSTED_DOWNLOAD_HOSTS.contains(host) || host.endsWith(".githubusercontent.com"))
+            scheme == "https" && (
+                TRUSTED_DOWNLOAD_HOSTS.contains(host) ||
+                host.endsWith(".github.com") ||
+                host.endsWith(".githubusercontent.com") ||
+                host.endsWith(".amazonaws.com") ||
+                host.endsWith(".blob.core.windows.net")
+            )
         } catch (_: Exception) {
             false
         }
     }
 
-    private fun fetchSmallTextHttps(url: String): String {
-        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            instanceFollowRedirects = true
-            connectTimeout = 8000
-            readTimeout = 8000
-            setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
-        }
+    fun fetchSmallTextHttps(url: String, token: String = ""): String {
         return try {
-            if (conn.responseCode in 200..299) {
-                conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            } else {
-                ""
+            var currentUrl = url
+            var redirects = 0
+            var finalResponse = ""
+            while (redirects < 6) {
+                val conn = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    instanceFollowRedirects = false
+                    connectTimeout = 10000
+                    readTimeout = 12000
+                    setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+                    if (token.isNotBlank() && currentUrl.contains("api.github.com")) {
+                        setRequestProperty("Authorization", "Bearer $token")
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                    }
+                }
+                val code = conn.responseCode
+                if (code in 300..399) {
+                    val loc = conn.getHeaderField("Location")
+                    conn.disconnect()
+                    if (!loc.isNullOrBlank() && isTrustedHttpsUrl(loc)) {
+                        currentUrl = loc
+                        redirects++
+                        continue
+                    }
+                }
+                if (code in 200..299) {
+                    finalResponse = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                }
+                conn.disconnect()
+                break
             }
-        } finally {
-            conn.disconnect()
+            finalResponse
+        } catch (_: Exception) {
+            ""
         }
     }
 

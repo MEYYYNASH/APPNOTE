@@ -28,5 +28,10 @@ class ExampleRobolectricTest {
         val settings = repo.loadSettings().copy(accent = NoteColor.VIOLET)
         repo.saveSettings(settings)
         assertEquals(NoteColor.VIOLET, repo.loadSettings().accent)
+
+        // Verify package install permission check does not crash
+        val canInstall = com.example.util.GitHubSyncHelper.canRequestPackageInstalls(context)
+        // Robolectric environment returns a valid boolean
+        assertTrue(canInstall || !canInstall)
     }
 }

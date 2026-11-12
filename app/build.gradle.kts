@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.glassnotes.vqpzxm"
     minSdk = 24
     targetSdk = 36
-    versionCode = 10114
-    versionName = "1.1.14"
+    versionCode = 10115
+    versionName = "1.1.15"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
