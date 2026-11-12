@@ -490,6 +490,14 @@ fun SettingsScreen(
                                                 )
                                                 releaseInfo = verifiedResult
                                                 onShowToast(verifiedResult.statusMessage)
+                                                if (verifiedResult.state == UpdateState.READY_TO_INSTALL &&
+                                                    verifiedResult.verifiedApkPath.isNotBlank()
+                                                ) {
+                                                    GitHubSyncHelper.launchApkPackageInstaller(
+                                                        context = context,
+                                                        verifiedApkPath = verifiedResult.verifiedApkPath
+                                                    )
+                                                }
                                             }
                                         },
                                         modifier = Modifier

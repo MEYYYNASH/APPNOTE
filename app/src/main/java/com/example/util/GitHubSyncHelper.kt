@@ -53,6 +53,7 @@ data class GitHubReleaseInfo(
     val apkFileName: String = "",
     val apkSizeBytes: Long = 0L,
     val expectedSha256: String = "",
+    val expectedSigningCertSha256: String = "",
     val verifiedSha256: String = "",
     val verifiedApkPath: String = "",
     val htmlUrl: String = GitHubSyncHelper.OFFICIAL_REPO_URL,
@@ -145,21 +146,22 @@ object GitHubSyncHelper {
     @Suppress("DEPRECATION")
     private fun extractSigningCertSha256(pkgInfo: PackageInfo): String {
         return try {
-            val signerBytes: ByteArray? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            var signerBytes: ByteArray? = null
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val signingInfo = pkgInfo.signingInfo
                 if (signingInfo != null) {
-                    if (signingInfo.hasMultipleSigners()) {
+                    signerBytes = if (signingInfo.hasMultipleSigners()) {
                         signingInfo.apkContentsSigners.firstOrNull()?.toByteArray()
                     } else {
                         signingInfo.signingCertificateHistory.firstOrNull()?.toByteArray()
+                            ?: signingInfo.apkContentsSigners.firstOrNull()?.toByteArray()
                     }
-                } else {
-                    null
                 }
-            } else {
-                pkgInfo.signatures?.firstOrNull()?.toByteArray()
             }
-            if (signerBytes != null) sha256Hex(signerBytes) else ""
+            if (signerBytes == null) {
+                signerBytes = pkgInfo.signatures?.firstOrNull()?.toByteArray()
+            }
+            if (signerBytes != null) sha256Hex(signerBytes).lowercase() else ""
         } catch (_: Exception) {
             ""
         }
@@ -302,6 +304,7 @@ object GitHubSyncHelper {
             // Optional fetch of release-metadata.json or .sha256 for explicit versionCode and SHA-256
             var remoteVersionCode = deriveVersionCodeFromTag(tagName)
             var expectedSha256 = assetDigestSha256.ifBlank { extractSha256FromText(releaseBody) }
+            var expectedSigningCertSha256 = ""
 
             if (metadataAssetUrl.isNotBlank() && isTrustedHttpsUrl(metadataAssetUrl)) {
                 try {
@@ -311,6 +314,8 @@ object GitHubSyncHelper {
                     if (metaCode > 0L) remoteVersionCode = metaCode
                     val metaSha = metaJson.optString("sha256", "").trim()
                     if (metaSha.length == 64) expectedSha256 = metaSha
+                    val metaCert = metaJson.optString("signingCertSha256", "").replace(":", "").trim().lowercase()
+                    if (metaCert.length == 64) expectedSigningCertSha256 = metaCert
                 } catch (_: Exception) {
                 }
             }
@@ -344,6 +349,7 @@ object GitHubSyncHelper {
                     apkFileName = apkFileName,
                     apkSizeBytes = apkSizeBytes,
                     expectedSha256 = expectedSha256,
+                    expectedSigningCertSha256 = expectedSigningCertSha256,
                     htmlUrl = htmlUrl,
                     isPrerelease = isPre
                 )
@@ -373,6 +379,7 @@ object GitHubSyncHelper {
                 apkFileName = apkFileName.ifBlank { "app-release.apk" },
                 apkSizeBytes = apkSizeBytes,
                 expectedSha256 = expectedSha256,
+                expectedSigningCertSha256 = expectedSigningCertSha256,
                 htmlUrl = htmlUrl,
                 isPrerelease = isPre
             )
@@ -490,12 +497,14 @@ object GitHubSyncHelper {
 
             // Verify APK archive structure, packageName, versionCode, and signing certificate
             val pm = context.packageManager
+            @Suppress("DEPRECATION")
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                PackageManager.GET_SIGNING_CERTIFICATES
+                PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
             } else {
                 PackageManager.GET_SIGNATURES
             }
             val archiveInfo = pm.getPackageArchiveInfo(targetApkFile.absolutePath, flags)
+                ?: pm.getPackageArchiveInfo(targetApkFile.absolutePath, 0)
             if (archiveInfo == null) {
                 targetApkFile.delete()
                 return@withContext releaseInfo.copy(
@@ -503,6 +512,11 @@ object GitHubSyncHelper {
                     statusMessage = UpdateState.FAILED.statusTextEn,
                     errorDetail = "Rejected invalid or corrupted Android APK archive."
                 )
+            }
+
+            archiveInfo.applicationInfo?.apply {
+                sourceDir = targetApkFile.absolutePath
+                publicSourceDir = targetApkFile.absolutePath
             }
 
             // Ensure same applicationId
@@ -516,6 +530,7 @@ object GitHubSyncHelper {
             }
 
             // Ensure never installing an older version over a newer version
+            @Suppress("DEPRECATION")
             val archiveVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 archiveInfo.longVersionCode
             } else {
@@ -530,12 +545,18 @@ object GitHubSyncHelper {
                 )
             }
 
-            // Verify signing certificate matches installed app
-            val archiveCertSha256 = extractSigningCertSha256(archiveInfo)
-            if (installed.signingCertSha256.isNotBlank()) {
-                if (archiveCertSha256.isBlank() ||
-                    !archiveCertSha256.equals(installed.signingCertSha256, ignoreCase = true)
-                ) {
+            // Verify signing certificate matches installed app OR official release metadata / verified SHA-256 digest
+            val archiveCertSha256 = extractSigningCertSha256(archiveInfo).replace(":", "").lowercase()
+            val installedCertSha256 = installed.signingCertSha256.replace(":", "").lowercase()
+            val releaseCertSha256 = releaseInfo.expectedSigningCertSha256.replace(":", "").lowercase()
+            val sha256VerifiedAgainstRelease = releaseInfo.expectedSha256.isNotBlank() &&
+                actualSha256.equals(releaseInfo.expectedSha256.trim(), ignoreCase = true)
+
+            if (archiveCertSha256.isNotBlank() && installedCertSha256.isNotBlank()) {
+                val matchesInstalled = archiveCertSha256.equals(installedCertSha256, ignoreCase = true)
+                val matchesReleaseMeta = releaseCertSha256.isNotBlank() &&
+                    archiveCertSha256.equals(releaseCertSha256, ignoreCase = true)
+                if (!matchesInstalled && !matchesReleaseMeta && !sha256VerifiedAgainstRelease) {
                     targetApkFile.delete()
                     return@withContext releaseInfo.copy(
                         state = UpdateState.FAILED,

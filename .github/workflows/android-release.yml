@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release version tag (e.g. v1.1.8)'
+        description: 'Release version tag (e.g. v1.1.11)'
         required: false
-        default: 'v1.1.8'
+        default: 'v1.1.11'
 
 permissions:
   contents: write
@@ -33,7 +33,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Prepare Signing Keystore (Secrets or Automatic Fallback)
+      - name: Prepare Signing Keystore (Decode debug.keystore.base64 or Secrets)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -41,7 +41,10 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           KEYSTORE_FILE="${GITHUB_WORKSPACE}/release-signing-key.jks"
-          if [ ! -f "${GITHUB_WORKSPACE}/debug.keystore" ]; then
+          if [ -f "${GITHUB_WORKSPACE}/debug.keystore.base64" ]; then
+            echo "Decoding official APPNOTE debug.keystore.base64 so signature matches installed app..."
+            base64 --decode "${GITHUB_WORKSPACE}/debug.keystore.base64" > "${GITHUB_WORKSPACE}/debug.keystore"
+          elif [ ! -f "${GITHUB_WORKSPACE}/debug.keystore" ]; then
             keytool -genkeypair -v \
               -keystore "${GITHUB_WORKSPACE}/debug.keystore" \
               -alias androiddebugkey \
@@ -60,7 +63,7 @@ jobs:
             echo "KEY_ALIAS=${ANDROID_KEY_ALIAS}" >> "$GITHUB_ENV"
             echo "KEY_PASS=${ANDROID_KEY_PASSWORD}" >> "$GITHUB_ENV"
           else
-            echo "Using repository debug.keystore for consistent APK signature..."
+            echo "Using official repository debug.keystore (from debug.keystore.base64) for identical APK signature..."
             cp "${GITHUB_WORKSPACE}/debug.keystore" "$KEYSTORE_FILE"
             echo "KS_PASS=android" >> "$GITHUB_ENV"
             echo "KEY_ALIAS=androiddebugkey" >> "$GITHUB_ENV"
@@ -75,7 +78,7 @@ jobs:
           elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
             TAG_NAME="${{ github.event.inputs.release_tag }}"
           else
-            TAG_NAME="v1.1.$((7 + ${GITHUB_RUN_NUMBER:-1}))"
+            TAG_NAME="v1.1.$((8 + ${GITHUB_RUN_NUMBER:-1}))"
           fi
           CLEAN_VERSION="${TAG_NAME#v}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "${CLEAN_VERSION}"
@@ -87,6 +90,10 @@ jobs:
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_name=${CLEAN_VERSION}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+
+          # Stamp versionCode and versionName into app/build.gradle.kts before building
+          sed -i "s/versionCode = [0-9]\+/versionCode = ${VERSION_CODE}/g" app/build.gradle.kts || true
+          sed -i "s/versionName = \"[^\"]*\"/versionName = \"${CLEAN_VERSION}\"/g" app/build.gradle.kts || true
 
       - name: Build Android APK (or Use Pre-built Root GlassNotes.apk)
         run: |
