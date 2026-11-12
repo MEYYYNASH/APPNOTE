@@ -1,0 +1,183 @@
+@import "tailwindcss";
+
+:root {
+  --bg1: #cfe3ff;
+  --bg2: #e4d9ff;
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-elevated: rgba(255, 255, 255, 0.75);
+  --card: rgba(255, 255, 255, 0.6);
+  --edge: rgba(255, 255, 255, 0.75);
+  --ink: #0d1b2e;
+  --mute: #52657d;
+  --a1: #2f7cff;
+  --a2: #7a5cff;
+  --field: rgba(255, 255, 255, 0.65);
+  --shadow: 0 12px 40px rgba(40, 70, 130, 0.18);
+  --blob-opacity: 0.55;
+  --font-family: 'Figtree', system-ui, -apple-system, sans-serif;
+  --font-scale: 1;
+}
+
+[data-theme="dark"] {
+  --bg1: #050d1c;
+  --bg2: #140b2e;
+  --glass: rgba(18, 28, 50, 0.65);
+  --glass-elevated: rgba(24, 38, 68, 0.85);
+  --card: rgba(255, 255, 255, 0.07);
+  --edge: rgba(255, 255, 255, 0.14);
+  --ink: #eaf1ff;
+  --mute: #8fa3bf;
+  --a1: #4da3ff;
+  --a2: #9a7bff;
+  --field: rgba(255, 255, 255, 0.08);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --blob-opacity: 0.42;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --bg1: #050d1c;
+    --bg2: #140b2e;
+    --glass: rgba(18, 28, 50, 0.65);
+    --glass-elevated: rgba(24, 38, 68, 0.85);
+    --card: rgba(255, 255, 255, 0.07);
+    --edge: rgba(255, 255, 255, 0.14);
+    --ink: #eaf1ff;
+    --mute: #8fa3bf;
+    --a1: #4da3ff;
+    --a2: #9a7bff;
+    --field: rgba(255, 255, 255, 0.08);
+    --shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    --blob-opacity: 0.42;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--bg1), var(--bg2));
+  font-family: var(--font-family);
+  font-size: calc(16px * var(--font-scale));
+}
+
+button, input, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--a1);
+  outline-offset: 2px;
+}
+
+/* Ambient Floating Background Blobs */
+.bg-blobs {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.bg-blobs i {
+  position: absolute;
+  width: 48vmax;
+  height: 48vmax;
+  border-radius: 50%;
+  filter: blur(95px);
+  opacity: var(--blob-opacity);
+  animation: float 22s ease-in-out infinite alternate;
+}
+
+.bg-blobs i:nth-child(1) {
+  background: #3b82f6;
+  top: -15%;
+  left: -10%;
+}
+
+.bg-blobs i:nth-child(2) {
+  background: #8b5cf6;
+  bottom: -20%;
+  right: -10%;
+  animation-delay: -8s;
+}
+
+.bg-blobs i:nth-child(3) {
+  background: #06b6d4;
+  top: 35%;
+  left: 35%;
+  width: 32vmax;
+  height: 32vmax;
+  animation-delay: -14s;
+}
+
+@keyframes float {
+  to {
+    transform: translate(8vmax, -6vmax) scale(1.15);
+  }
+}
+
+/* Glassmorphism panel helper */
+.glass-panel {
+  background: var(--glass);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  border: 1px solid var(--edge);
+  box-shadow: var(--shadow);
+}
+
+.glass-panel-elevated {
+  background: var(--glass-elevated);
+  backdrop-filter: blur(34px) saturate(1.7);
+  -webkit-backdrop-filter: blur(34px) saturate(1.7);
+  border: 1px solid var(--edge);
+  box-shadow: var(--shadow);
+}
+
+.glass-card {
+  background: var(--card);
+  border: 1px solid var(--edge);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease;
+}
+
+.glass-field {
+  background: var(--field);
+  border: 1px solid var(--edge);
+}
+
+/* Font classes */
+.font-figtree {
+  font-family: 'Figtree', system-ui, -apple-system, sans-serif !important;
+}
+
+.font-serif {
+  font-family: 'Newsreader', Georgia, serif !important;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+.font-custom {
+  font-family: 'Figtree', system-ui, sans-serif !important;
+}
+
+/* Privacy mode preview blur */
+.privacy-blur {
+  filter: blur(5px);
+}
