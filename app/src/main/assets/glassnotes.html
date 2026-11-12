@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg1:#cfe3ff;--bg2:#e4d9ff;--glass:rgba(255,255,255,.5);--card:rgba(255,255,255,.55);--edge:rgba(255,255,255,.75);--ink:#0d1b2e;--mute:#52657d;--a1:#2f7cff;--a2:#7a5cff;--field:rgba(255,255,255,.6);--shadow:0 12px 40px rgba(40,70,130,.2);--blob:.5;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg1:#050d1c;--bg2:#140b2e;--glass:rgba(18,28,50,.5);--card:rgba(255,255,255,.06);--edge:rgba(255,255,255,.13);--ink:#eaf1ff;--mute:#8fa3bf;--a1:#4da3ff;--a2:#9a7bff;--field:rgba(255,255,255,.07);--shadow:0 12px 40px rgba(0,0,0,.5);--blob:.4;color-scheme:dark}}
+:root[data-theme="dark"]{--bg1:#050d1c;--bg2:#140b2e;--glass:rgba(18,28,50,.5);--card:rgba(255,255,255,.06);--edge:rgba(255,255,255,.13);--ink:#eaf1ff;--mute:#8fa3bf;--a1:#4da3ff;--a2:#9a7bff;--field:rgba(255,255,255,.07);--shadow:0 12px 40px rgba(0,0,0,.5);--blob:.4;color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;color:var(--ink);background:linear-gradient(135deg,var(--bg1),var(--bg2));font:16px/1.5 Figtree,system-ui,-apple-system,sans-serif}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.bg{position:fixed;inset:0;overflow:hidden;z-index:0}
+.bg i{position:absolute;width:46vmax;height:46vmax;border-radius:50%;filter:blur(90px);opacity:var(--blob);animation:float 22s ease-in-out infinite alternate}
+.bg i:nth-child(1){background:#3b82f6;top:-15%;left:-10%}
+.bg i:nth-child(2){background:#8b5cf6;bottom:-20%;right:-10%;animation-delay:-8s}
+.bg i:nth-child(3){background:#06b6d4;top:35%;left:35%;width:30vmax;height:30vmax;animation-delay:-14s}
+@keyframes float{to{transform:translate(8vmax,-6vmax) scale(1.15)}}
+.app{position:relative;z-index:1;width:100%;height:100%;display:flex;flex-direction:column;background:var(--glass);-webkit-backdrop-filter:blur(26px) saturate(160%);backdrop-filter:blur(26px) saturate(160%)}
+.top{display:flex;align-items:center;gap:10px;padding:18px 20px 8px}
+.top h1{flex:1;margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em}
+.ib{display:inline-grid;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--field);border:1px solid var(--edge)}
+.srch{display:flex;align-items:center;gap:8px;margin:4px 20px 10px;padding:0 14px;height:46px;border-radius:16px;background:var(--field);border:1px solid var(--edge);color:var(--mute)}
+.srch input{flex:1;border:0;background:none;outline:none;color:var(--ink)}
+.list{flex:1;overflow:auto;list-style:none;margin:0;padding:4px 20px 110px}
+.item{position:relative;display:block;width:100%;text-align:left;padding:14px 16px 14px 20px;margin-bottom:10px;background:var(--card);border:1px solid var(--edge);border-radius:20px;-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
+.item::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:0 4px 4px 0;background:var(--c,#3b82f6)}
+.dock-wrap{position:fixed;left:20px;right:20px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px;border-radius:999px;background:var(--glass);border:1px solid var(--edge);-webkit-backdrop-filter:blur(26px) saturate(160%);backdrop-filter:blur(26px) saturate(160%);z-index:30}
+.dock{display:flex;align-items:center;gap:4px;height:62px;padding:6px;border-radius:999px;background:#14171f;border:1px solid var(--edge);box-shadow:0 14px 34px rgba(0,0,0,.28)}
+.dock button{display:inline-flex;align-items:center;gap:8px;height:50px;padding:0 14px;border-radius:999px;color:rgba(255,255,255,.72);font-weight:600;font-size:14px;transition:all .25s}
+.dock button.on{background:#fff;color:#11151e;padding:0 18px}
+.fab-plus{width:60px;height:60px;border-radius:50%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--a1),var(--a2));box-shadow:0 12px 28px rgba(47,124,255,.42)}
+</style>
+</head>
+<body>
+<div class="bg"><i></i><i></i><i></i></div>
+<div class="app">
+  <div class="top">
+    <h1>Notes</h1>
+    <button class="ib" id="themeBtn" aria-label="Switch theme">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>
+    </button>
+  </div>
+  <label class="srch">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="q" type="search" placeholder="Search notes">
+  </label>
+  <ul class="list" id="list"></ul>
+  <div class="dock-wrap">
+    <nav class="dock">
+      <button class="on" data-tab="all">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5L12 3.8l8 6.7v8.7a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 19.2z"/><path d="M9 16.5h6"/></svg>
+        <span>Home</span>
+      </button>
+      <button data-tab="list">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="4.5" width="14" height="6" rx="3"/><rect x="5" y="13.5" width="14" height="6" rx="3"/></svg>
+      </button>
+      <button data-tab="arch">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l8 5-8 5-8-5 8-5z"/><path d="M4 14l8 5 8-5"/></svg>
+      </button>
+    </nav>
+    <button class="fab-plus" id="newBtn" aria-label="New note">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5.5v13M5.5 12h13"/></svg>
+    </button>
+  </div>
+</div>
+<script>
+const notes = [{title:"Full-Screen Glass Notes", body:"Clean full-screen glass blur with floating capsule navigation.", time:"Just now", color:"#3b82f6"}];
+function render(){
+  const q = document.getElementById('q').value.toLowerCase();
+  document.getElementById('list').innerHTML = notes.filter(n => (n.title+n.body).toLowerCase().includes(q)).map(n => `
+    <li><button class="item" style="--c:${n.color}"><b>${n.title}</b><div style="color:var(--mute);font-size:14px">${n.body}</div><small style="color:var(--mute);font-size:12px">${n.time}</small></button></li>
+  `).join('');
+}
+document.getElementById('q').oninput = render;
+document.getElementById('themeBtn').onclick = () => {
+  const d = document.documentElement.getAttribute('data-theme') === 'dark';
+  document.documentElement.setAttribute('data-theme', d ? 'light' : 'dark');
+};
+render();
+</script>
+</body>
+</html>

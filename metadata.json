@@ -1,0 +1,11 @@
+{
+  "name": "GlassNotes",
+  "description": "A clean glassmorphic mobile-first Notes app with checklists, voice, drawing, scan attachments, version history, and bilingual support.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
