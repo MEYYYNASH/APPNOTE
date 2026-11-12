@@ -81,7 +81,10 @@ import com.example.ui.components.GlassPanel
 import com.example.ui.icons.LineIcon
 import com.example.ui.icons.LineIconType
 import com.example.ui.theme.LocalGlassTokens
+import androidx.compose.ui.window.Dialog
+import com.example.util.GitHubReleaseInfo
 import com.example.util.GitHubSyncHelper
+import com.example.util.UpdateState
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
@@ -111,10 +114,22 @@ fun SettingsScreen(
     var showRestoreBox by remember { mutableStateOf(false) }
     var restoreJsonText by remember { mutableStateOf("") }
 
-    // Zero-typing App Version Check & Notification state
-    var updateStatusText by remember { mutableStateOf("") }
-    var updateDeniedError by remember { mutableStateOf(false) }
-    var isSyncingGitHub by remember { mutableStateOf(false) }
+    val installedInfo = remember(context) { GitHubSyncHelper.getInstalledAppInfo(context) }
+    var releaseInfo by remember {
+        mutableStateOf(
+            GitHubReleaseInfo(
+                state = UpdateState.IDLE,
+                statusMessage = UpdateState.IDLE.statusTextEn,
+                hasNewUpdate = false,
+                installedVersionName = installedInfo.versionName,
+                installedVersionCode = installedInfo.versionCode,
+                latestReleaseTag = settings.latestAvailableVersion.ifBlank { "Not checked yet" },
+                releaseDate = "—"
+            )
+        )
+    }
+    var downloadProgressPct by remember { mutableStateOf(0) }
+    var showReleaseNotesDialog by remember { mutableStateOf(false) }
 
     BackHandler(onBack = onBack)
 
@@ -163,10 +178,6 @@ fun SettingsScreen(
     }
 
     val isKm = settings.language == LanguageOption.KHMER
-    val hasNewUpdateAvailable = GitHubSyncHelper.compareVersions(
-        settings.latestAvailableVersion,
-        settings.appVersion
-    ) > 0
 
     GlassOuterPane(
         cornerRadius = 24.dp,
@@ -220,7 +231,7 @@ fun SettingsScreen(
                     contentPadding = PaddingValues(bottom = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Card 1: Clean Logo + Zero-Typing App Update Check (Same Version Denied & New Version Notification)
+                    // Card 1: APPNOTE — GitHub Repository Connected Auto Update System (MEY-NASHH/APPNOTE)
                     item {
                         GlassPanel(
                             cornerRadius = 24.dp,
@@ -234,7 +245,7 @@ fun SettingsScreen(
                                     .padding(18.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                // App Logo & Version Status Header (Zero Typing)
+                                // Header: Logo + Title + Official Repo Slug + New Version Badge
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -242,7 +253,7 @@ fun SettingsScreen(
                                 ) {
                                     Image(
                                         painter = painterResource(id = R.drawable.clean_glass_notes_logo_1794447214501),
-                                        contentDescription = "GlassNotes Logo",
+                                        contentDescription = "APPNOTE Logo",
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier
                                             .size(52.dp)
@@ -257,133 +268,97 @@ fun SettingsScreen(
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = if (isKm) {
-                                                "កំណែដំឡើង៖ v${settings.appVersion}  •  កំណែចុងក្រោយ៖ v${settings.latestAvailableVersion}"
-                                            } else {
-                                                "Installed: v${settings.appVersion}  •  Latest Release: v${settings.latestAvailableVersion}"
-                                            },
+                                            text = "GitHub: ${GitHubSyncHelper.OFFICIAL_REPO_SLUG}",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = tokens.accentStart,
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.testTag("installed_version_label")
+                                            fontWeight = FontWeight.SemiBold
                                         )
                                     }
 
-                                    // Live Version Badge (New Update vs Up to Date)
-                                    val badgeColor = if (hasNewUpdateAvailable) tokens.accentStart else tokens.textSecondary
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(CircleShape)
-                                            .background(badgeColor.copy(alpha = 0.14f))
-                                            .border(1.dp, badgeColor.copy(alpha = 0.6f), CircleShape)
-                                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                                            .testTag("version_comparison_badge")
-                                    ) {
-                                        Text(
-                                            text = if (hasNewUpdateAvailable) {
-                                                if (isKm) "មានកំណែថ្មី v${settings.latestAvailableVersion}" else "New v${settings.latestAvailableVersion}"
-                                            } else {
-                                                if (isKm) "កំណែដូចគ្នា" else "Same Version"
-                                            },
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = if (hasNewUpdateAvailable) tokens.accentStart else tokens.textPrimary,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                    // New Version Badge (shown only when a real newer GitHub release is published)
+                                    if (releaseInfo.hasNewUpdate) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF10B981).copy(alpha = 0.16f))
+                                                .border(1.dp, Color(0xFF10B981), CircleShape)
+                                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                .testTag("version_comparison_badge")
+                                        ) {
+                                            Text(
+                                                text = "NEW ${releaseInfo.latestReleaseTag}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color(0xFF10B981),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CircleShape)
+                                                .background(tokens.fieldFill)
+                                                .border(1.dp, tokens.panelBorder, CircleShape)
+                                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                .testTag("version_comparison_badge")
+                                        ) {
+                                            Text(
+                                                text = "v${installedInfo.versionName}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = tokens.textSecondary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
 
-                                // Check Update Button (Zero typing: installs & notifies when new version exists; Denies when same version!)
-                                GlassActionPill(
-                                    label = if (hasNewUpdateAvailable) {
-                                        if (isKm) "ពិនិត្យ និងអាប់ដេតទៅ v${settings.latestAvailableVersion}" else "Check Update (Install v${settings.latestAvailableVersion})"
-                                    } else {
-                                        if (isKm) "ពិនិត្យមើលកំណែថ្មី (Check Update)" else "Check Update"
-                                    },
-                                    icon = LineIconType.BELL,
-                                    primary = true,
-                                    onClick = {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !settings.notificationsEnabled) {
-                                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                        }
-                                        scope.launch {
-                                            val result = GitHubSyncHelper.checkAndVerifyUpdate(
-                                                context = context,
-                                                currentInstalledVersion = settings.appVersion,
-                                                targetVersionInput = settings.latestAvailableVersion,
-                                                ownerRepo = settings.githubOwnerRepo,
-                                                branch = settings.githubBranch,
-                                                token = settings.githubToken
-                                            )
-                                            updateStatusText = result.message
-                                            updateDeniedError = result.deniedSameVersion || !result.success
-                                            if (result.success && result.newVersion.isNotBlank()) {
-                                                onUpdateSettings {
-                                                    it.copy(
-                                                        appVersion = result.newVersion,
-                                                        latestAvailableVersion = result.newVersion,
-                                                        notificationsEnabled = true
-                                                    )
-                                                }
-                                            }
-                                            onShowToast(result.message)
-                                        }
-                                    },
+                                // Metadata Grid: Installed Version, Latest GitHub Release, Release Date, Update Status
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("setting_check_update_button")
-                                )
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(tokens.fieldFill)
+                                        .border(1.dp, tokens.panelBorder, RoundedCornerShape(16.dp))
+                                        .padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    UpdateMetaRow(
+                                        label = if (isKm) "កំណែដំឡើងបច្ចុប្បន្ន" else "Installed Version",
+                                        value = "v${installedInfo.versionName} (code ${installedInfo.versionCode})",
+                                        valueTestTag = "installed_version_label"
+                                    )
+                                    UpdateMetaRow(
+                                        label = if (isKm) "កំណែចុងក្រោយលើ GitHub" else "Latest GitHub Release",
+                                        value = releaseInfo.latestReleaseTag,
+                                        valueTestTag = "latest_github_release_label"
+                                    )
+                                    UpdateMetaRow(
+                                        label = if (isKm) "កាលបរិច្ឆេទចេញផ្សាយ" else "Release Date",
+                                        value = releaseInfo.releaseDate,
+                                        valueTestTag = "github_release_date_label"
+                                    )
+                                    UpdateMetaRow(
+                                        label = if (isKm) "ស្ថានភាពអាប់ដេត" else "Update Status",
+                                        value = releaseInfo.statusMessage,
+                                        valueColor = when (releaseInfo.state) {
+                                            UpdateState.UPDATE_AVAILABLE,
+                                            UpdateState.READY_TO_INSTALL,
+                                            UpdateState.UP_TO_DATE -> Color(0xFF10B981)
+                                            UpdateState.FAILED -> Color(0xFFEF4444)
+                                            else -> tokens.accentStart
+                                        },
+                                        valueTestTag = "github_update_status_label"
+                                    )
+                                }
 
-                                // One-tap button to publish a new app version & trigger an update notification to the app
-                                GlassActionPill(
-                                    label = if (isSyncingGitHub) {
-                                        "Publishing new release..."
-                                    } else {
-                                        val nextVer = GitHubSyncHelper.suggestNextVersion(
-                                            if (hasNewUpdateAvailable) settings.latestAvailableVersion else settings.appVersion
-                                        )
-                                        if (isKm) {
-                                            "បញ្ចេញកំណែថ្មី v$nextVer និងផ្ញើការជូនដំណឹង"
-                                        } else {
-                                            "Send New Update Notification (v$nextVer)"
-                                        }
-                                    },
-                                    icon = LineIconType.CLOUD_UPLOAD,
-                                    onClick = {
-                                        if (isSyncingGitHub) return@GlassActionPill
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !settings.notificationsEnabled) {
-                                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                        }
-                                        scope.launch {
-                                            isSyncingGitHub = true
-                                            val backupJson = onExportBackupJson()
-                                            val res = GitHubSyncHelper.publishNextReleaseUpdate(
-                                                context = context,
-                                                currentInstalledVersion = settings.appVersion,
-                                                currentLatestVersion = settings.latestAvailableVersion,
-                                                backupJson = backupJson
-                                            )
-                                            isSyncingGitHub = false
-                                            updateStatusText = res.message
-                                            updateDeniedError = false
-                                            if (res.success && res.newVersion.isNotBlank()) {
-                                                onUpdateSettings {
-                                                    it.copy(
-                                                        latestAvailableVersion = res.newVersion,
-                                                        notificationsEnabled = true
-                                                    )
-                                                }
-                                            }
-                                            onShowToast(res.message)
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("setting_github_push_button")
-                                )
-
-                                // Status Banner for Denied (Same Version) / Approved (Updated & Notified)
-                                if (updateStatusText.isNotBlank()) {
-                                    val bannerColor = if (updateDeniedError) Color(0xFFEF4444) else Color(0xFF10B981)
+                                // Status / Error Detail Banner
+                                if (releaseInfo.state != UpdateState.IDLE) {
+                                    val bannerColor = when (releaseInfo.state) {
+                                        UpdateState.FAILED -> Color(0xFFEF4444)
+                                        UpdateState.UPDATE_AVAILABLE,
+                                        UpdateState.READY_TO_INSTALL,
+                                        UpdateState.UP_TO_DATE -> Color(0xFF10B981)
+                                        else -> tokens.accentStart
+                                    }
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -396,17 +371,187 @@ fun SettingsScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         LineIcon(
-                                            type = if (updateDeniedError) LineIconType.CLOSE else LineIconType.CHECK,
+                                            type = if (releaseInfo.state == UpdateState.FAILED) LineIconType.CLOSE else LineIconType.CHECK,
                                             tint = bannerColor,
                                             size = 18.dp
                                         )
-                                        Text(
-                                            text = updateStatusText,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = tokens.textPrimary,
-                                            fontWeight = FontWeight.Medium
-                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = releaseInfo.statusMessage,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = tokens.textPrimary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            if (releaseInfo.errorDetail.isNotBlank()) {
+                                                Text(
+                                                    text = releaseInfo.errorDetail,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = tokens.textSecondary
+                                                )
+                                            } else if (releaseInfo.verifiedSha256.isNotBlank()) {
+                                                Text(
+                                                    text = "Verified SHA-256: ${releaseInfo.verifiedSha256.take(16)}…",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = tokens.textSecondary
+                                                )
+                                            }
+                                        }
                                     }
+                                }
+
+                                // Prerelease updates opt-in toggle (off by default per Section 3 & 7)
+                                SettingCheckboxRow(
+                                    label = if (isKm) "រួមបញ្ចូលកំណែសាកល្បង (Prerelease)" else "Include prerelease updates",
+                                    checked = settings.includePrereleases,
+                                    testTag = "setting_include_prerelease_checkbox",
+                                    onCheckedChange = { enabled ->
+                                        onUpdateSettings { it.copy(includePrereleases = enabled) }
+                                    }
+                                )
+
+                                // Primary Action 1: Check Update (queries GitHub Releases)
+                                GlassActionPill(
+                                    label = if (releaseInfo.state == UpdateState.CHECKING) {
+                                        UpdateState.CHECKING.statusTextEn
+                                    } else if (isKm) {
+                                        "ពិនិត្យមើលកំណែថ្មី (Check Update)"
+                                    } else {
+                                        "Check Update"
+                                    },
+                                    icon = LineIconType.BELL,
+                                    primary = !releaseInfo.hasNewUpdate,
+                                    onClick = {
+                                        if (releaseInfo.state == UpdateState.CHECKING ||
+                                            releaseInfo.state == UpdateState.DOWNLOADING
+                                        ) return@GlassActionPill
+
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !settings.notificationsEnabled) {
+                                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        }
+                                        scope.launch {
+                                            releaseInfo = releaseInfo.copy(
+                                                state = UpdateState.CHECKING,
+                                                statusMessage = UpdateState.CHECKING.statusTextEn,
+                                                errorDetail = ""
+                                            )
+                                            val result = GitHubSyncHelper.checkGitHubReleaseUpdate(
+                                                context = context,
+                                                includePrerelease = settings.includePrereleases,
+                                                notifyOnNewRelease = true
+                                            )
+                                            releaseInfo = result
+                                            onUpdateSettings {
+                                                it.copy(
+                                                    latestAvailableVersion = if (result.hasNewUpdate) result.latestReleaseTag else ""
+                                                )
+                                            }
+                                            onShowToast(result.statusMessage)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("setting_check_update_button")
+                                )
+
+                                // Primary Action 2: Download Update (downloads actual signed APK & verifies SHA-256 + cert)
+                                if (releaseInfo.hasNewUpdate ||
+                                    releaseInfo.state == UpdateState.DOWNLOADING ||
+                                    releaseInfo.state == UpdateState.VERIFYING
+                                ) {
+                                    GlassActionPill(
+                                        label = when (releaseInfo.state) {
+                                            UpdateState.DOWNLOADING -> "Downloading update... ($downloadProgressPct%)"
+                                            UpdateState.VERIFYING -> UpdateState.VERIFYING.statusTextEn
+                                            else -> if (isKm) {
+                                                "ទាញយកកំណែថ្មី (${releaseInfo.apkFileName.ifBlank { "APK" }})"
+                                            } else {
+                                                "Download Update (${releaseInfo.latestReleaseTag})"
+                                            }
+                                        },
+                                        icon = LineIconType.CLOUD_UPLOAD,
+                                        primary = releaseInfo.state == UpdateState.UPDATE_AVAILABLE,
+                                        onClick = {
+                                            if (releaseInfo.state == UpdateState.DOWNLOADING ||
+                                                releaseInfo.state == UpdateState.VERIFYING
+                                            ) return@GlassActionPill
+
+                                            scope.launch {
+                                                downloadProgressPct = 0
+                                                val verifiedResult = GitHubSyncHelper.downloadAndVerifyReleaseApk(
+                                                    context = context,
+                                                    releaseInfo = releaseInfo,
+                                                    onStateChange = { st, pct, msg ->
+                                                        downloadProgressPct = pct
+                                                        releaseInfo = releaseInfo.copy(
+                                                            state = st,
+                                                            statusMessage = msg
+                                                        )
+                                                    }
+                                                )
+                                                releaseInfo = verifiedResult
+                                                onShowToast(verifiedResult.statusMessage)
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("setting_download_update_button")
+                                    )
+                                }
+
+                                // Primary Action 3: Install Update (opens Android Package Installer for verified APK)
+                                if (releaseInfo.state == UpdateState.READY_TO_INSTALL ||
+                                    releaseInfo.state == UpdateState.INSTALLATION_REQUESTED
+                                ) {
+                                    GlassActionPill(
+                                        label = if (isKm) "ដំឡើងកំណែថ្មី (Install Update)" else "Install Update",
+                                        icon = LineIconType.CHECK,
+                                        primary = true,
+                                        onClick = {
+                                            val launched = GitHubSyncHelper.launchApkPackageInstaller(
+                                                context = context,
+                                                verifiedApkPath = releaseInfo.verifiedApkPath
+                                            )
+                                            releaseInfo = if (launched) {
+                                                releaseInfo.copy(
+                                                    state = UpdateState.INSTALLATION_REQUESTED,
+                                                    statusMessage = UpdateState.INSTALLATION_REQUESTED.statusTextEn
+                                                )
+                                            } else {
+                                                releaseInfo.copy(
+                                                    state = UpdateState.FAILED,
+                                                    statusMessage = UpdateState.FAILED.statusTextEn,
+                                                    errorDetail = "Could not launch Android Package Installer."
+                                                )
+                                            }
+                                            onShowToast(releaseInfo.statusMessage)
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("setting_install_update_button")
+                                    )
+                                }
+
+                                // Secondary Actions Row: View Release Notes & Open GitHub Repository
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    SettingsActionBtn(
+                                        label = if (isKm) "មើលកំណត់ត្រាកំណែថ្មី" else "View Release Notes",
+                                        testTag = "setting_view_release_notes_button",
+                                        onClick = { showReleaseNotesDialog = true }
+                                    )
+                                    SettingsActionBtn(
+                                        label = if (isKm) "បើក GitHub Repository" else "Open GitHub Repository",
+                                        testTag = "setting_open_github_repo_button",
+                                        onClick = {
+                                            GitHubSyncHelper.openOfficialGitHubRepository(
+                                                context = context,
+                                                url = releaseInfo.htmlUrl
+                                            )
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -740,49 +885,132 @@ fun SettingsScreen(
             }
         }
     }
+
+    if (showReleaseNotesDialog) {
+        Dialog(onDismissRequest = { showReleaseNotesDialog = false }) {
+            GlassPanel(
+                cornerRadius = 24.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("release_notes_dialog")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "GitHub Release Notes (${releaseInfo.latestReleaseTag})",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = tokens.textPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        GlassIconButton(
+                            icon = LineIconType.CLOSE,
+                            contentDesc = "Close",
+                            sizeDp = 36.dp,
+                            onClick = { showReleaseNotesDialog = false },
+                            testTagName = "close_release_notes_button"
+                        )
+                    }
+
+                    Text(
+                        text = "Repository: ${GitHubSyncHelper.OFFICIAL_REPO_SLUG} • Published: ${releaseInfo.releaseDate}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = tokens.accentStart,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(tokens.fieldFill)
+                            .border(1.dp, tokens.panelBorder, RoundedCornerShape(14.dp))
+                            .padding(14.dp)
+                    ) {
+                        Text(
+                            text = releaseInfo.releaseNotes.ifBlank {
+                                "No release notes loaded yet. Tap 'Check Update' to query published releases from ${GitHubSyncHelper.OFFICIAL_REPO_SLUG}.\n\n" +
+                                    "Release Policy:\n" +
+                                    "• Only published stable GitHub Releases trigger updates.\n" +
+                                    "• Drafts and unpublished commits are ignored.\n" +
+                                    "• Signed APK is verified via SHA-256 and signing certificate."
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = tokens.textPrimary
+                        )
+                    }
+
+                    if (releaseInfo.expectedSha256.isNotBlank() || releaseInfo.verifiedSha256.isNotBlank()) {
+                        Text(
+                            text = "SHA-256: ${(releaseInfo.verifiedSha256.ifBlank { releaseInfo.expectedSha256 })}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tokens.textSecondary
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        GlassActionPill(
+                            label = "Open on GitHub",
+                            icon = LineIconType.SHARE,
+                            onClick = {
+                                GitHubSyncHelper.openOfficialGitHubRepository(
+                                    context = context,
+                                    url = releaseInfo.htmlUrl
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        GlassActionPill(
+                            label = "Done",
+                            icon = LineIconType.CHECK,
+                            primary = true,
+                            onClick = { showReleaseNotesDialog = false },
+                            modifier = Modifier.weight(0.7f)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
-private fun SettingsGlassTextField(
+private fun UpdateMetaRow(
+    label: String,
     value: String,
-    placeholder: String,
-    onValueChange: (String) -> Unit,
-    testTag: String,
-    modifier: Modifier = Modifier,
-    isPassword: Boolean = false
+    valueTestTag: String,
+    valueColor: Color? = null
 ) {
     val tokens = LocalGlassTokens.current
-    Box(
-        modifier = modifier
-            .defaultMinSize(minHeight = 44.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(tokens.fieldFill)
-            .border(1.dp, tokens.panelBorder, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        contentAlignment = Alignment.CenterStart
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        if (value.isEmpty()) {
-            Text(
-                text = placeholder,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
-                color = tokens.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = true,
-            visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
-            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 13.5.sp,
-                color = tokens.textPrimary
-            ),
-            cursorBrush = SolidColor(tokens.accentStart),
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(testTag)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = tokens.textSecondary
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelLarge,
+            color = valueColor ?: tokens.textPrimary,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.testTag(valueTestTag)
         )
     }
 }

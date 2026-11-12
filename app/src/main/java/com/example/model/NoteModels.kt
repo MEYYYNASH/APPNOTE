@@ -138,11 +138,12 @@ data class AppSettings(
     val notificationsEnabled: Boolean = false,
     val hidePreviews: Boolean = false,
     val webAppMode: Boolean = false,
-    val githubOwnerRepo: String = "glassnotes/app",
+    val githubOwnerRepo: String = "MEY-NASHH/APPNOTE",
     val githubBranch: String = "main",
     val githubToken: String = "",
-    val appVersion: String = "1.0.0",
-    val latestAvailableVersion: String = "1.1.0"
+    val appVersion: String = "1.0",
+    val latestAvailableVersion: String = "",
+    val includePrereleases: Boolean = false
 )
 
 enum class FilterTab(val id: String) {

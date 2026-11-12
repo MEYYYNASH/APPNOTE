@@ -1,0 +1,143 @@
+name: Android Release APK (APPNOTE)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-sign-release:
+    name: Build, Sign, Verify & Publish APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Validate Signing Secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "ERROR: Missing required signing secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD)."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "${GITHUB_WORKSPACE}/release-signing-key.jks"
+          if [ ! -s "${GITHUB_WORKSPACE}/release-signing-key.jks" ]; then
+            echo "ERROR: Decoded keystore file is empty or invalid."
+            exit 1
+          fi
+
+      - name: Extract Version Metadata from Git Tag
+        id: version_meta
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          CLEAN_VERSION="${TAG_NAME#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${CLEAN_VERSION}"
+          MAJOR=${MAJOR:-1}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH%%[^0-9]*}
+          PATCH=${PATCH:-0}
+          VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version_name=${CLEAN_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Unsigned/Signed Release APK with Gradle
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/release-signing-key.jks
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Sign & Verify APK with apksigner
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          BUILD_TOOLS_DIR=$(ls -d "$ANDROID_HOME/build-tools/"* | sort -V | tail -n 1)
+          APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+          ZIPALIGN="$BUILD_TOOLS_DIR/zipalign"
+
+          RAW_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$RAW_APK" ] || [ ! -f "$RAW_APK" ]; then
+            echo "ERROR: Release APK not found after Gradle build."
+            exit 1
+          fi
+
+          "$ZIPALIGN" -v -p 4 "$RAW_APK" app-aligned.apk
+          "$APKSIGNER" sign \
+            --ks "${GITHUB_WORKSPACE}/release-signing-key.jks" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --key-pass env:ANDROID_KEY_PASSWORD \
+            --out app-release.apk \
+            app-aligned.apk
+
+          "$APKSIGNER" verify --verbose --print-certs app-release.apk
+          CERT_SHA256=$("$APKSIGNER" verify --print-certs app-release.apk | grep -m 1 "SHA-256 digest:" | awk '{print $NF}')
+          echo "cert_sha256=${CERT_SHA256}" >> "$GITHUB_ENV"
+
+      - name: Calculate SHA-256 Checksum & Generate Release Metadata
+        id: checksum
+        run: |
+          if [ ! -f "app-release.apk" ]; then
+            echo "ERROR: Signed app-release.apk missing."
+            exit 1
+          fi
+          SHA256_HASH=$(sha256sum app-release.apk | awk '{print $1}')
+          echo "${SHA256_HASH}  app-release.apk" > app-release.apk.sha256
+          echo "sha256=${SHA256_HASH}" >> "$GITHUB_OUTPUT"
+
+          cat <<EOF > release-metadata.json
+          {
+            "repository": "MEY-NASHH/APPNOTE",
+            "tagName": "${{ steps.version_meta.outputs.tag_name }}",
+            "versionName": "${{ steps.version_meta.outputs.version_name }}",
+            "versionCode": ${{ steps.version_meta.outputs.version_code }},
+            "apkFileName": "app-release.apk",
+            "sha256": "${SHA256_HASH}",
+            "signingCertSha256": "${cert_sha256}",
+            "publishedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          EOF
+
+      - name: Clean Up Keystore File
+        if: always()
+        run: rm -f "${GITHUB_WORKSPACE}/release-signing-key.jks" app-aligned.apk
+
+      - name: Publish GitHub Release with Signed APK & Metadata
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version_meta.outputs.tag_name }}
+          name: "APPNOTE ${{ steps.version_meta.outputs.tag_name }}"
+          draft: false
+          prerelease: ${{ contains(steps.version_meta.outputs.tag_name, '-') }}
+          generate_release_notes: true
+          body: |
+            ## APPNOTE ${{ steps.version_meta.outputs.tag_name }}
+            - **Version Name:** `${{ steps.version_meta.outputs.version_name }}`
+            - **Version Code:** `${{ steps.version_meta.outputs.version_code }}`
+            - **APK Asset:** `app-release.apk`
+            - **SHA-256:** `${{ steps.checksum.outputs.sha256 }}`
+          files: |
+            app-release.apk
+            app-release.apk.sha256
+            release-metadata.json

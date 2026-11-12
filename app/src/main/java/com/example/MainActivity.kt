@@ -107,24 +107,25 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
         viewModel.updateSettings { it.copy(theme = nextTheme) }
     }
 
-    val hasNewAppUpdate = GitHubSyncHelper.compareVersions(
-        state.settings.latestAvailableVersion,
-        state.settings.appVersion
-    ) > 0
+    var detectedGitHubReleaseTag by remember { mutableStateOf("") }
     var dismissedUpdateBannerForVersion by remember { mutableStateOf("") }
+    val hasNewAppUpdate = detectedGitHubReleaseTag.isNotBlank()
 
-    // Automatically notify the user via system notification when a new app version is available (zero typing!)
-    LaunchedEffect(state.settings.latestAvailableVersion, state.settings.appVersion) {
-        if (hasNewAppUpdate) {
-            ReminderScheduler.showNewVersionNotification(
-                context = context,
-                newVersion = state.settings.latestAvailableVersion,
-                changelog = if (isKhmer) {
-                    "កំណែថ្មី v${state.settings.latestAvailableVersion} អាចអាប់ដេតបានឥឡូវនេះ!"
-                } else {
-                    "New update GlassNotes v${state.settings.latestAvailableVersion} is available!"
-                }
-            )
+    // Query official GitHub Releases (MEY-NASHH/APPNOTE) in background; never show fake updates!
+    LaunchedEffect(state.settings.includePrereleases) {
+        val result = GitHubSyncHelper.checkGitHubReleaseUpdate(
+            context = context,
+            includePrerelease = state.settings.includePrereleases,
+            notifyOnNewRelease = true
+        )
+        if (result.hasNewUpdate) {
+            detectedGitHubReleaseTag = result.latestReleaseTag
+            viewModel.updateSettings { it.copy(latestAvailableVersion = result.latestReleaseTag) }
+        } else {
+            detectedGitHubReleaseTag = ""
+            if (state.settings.latestAvailableVersion.isNotBlank()) {
+                viewModel.updateSettings { it.copy(latestAvailableVersion = "") }
+            }
         }
     }
 
@@ -376,10 +377,10 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                     }
                 }
 
-                // In-App Glass Update Notification Banner (when a newer version is available)
+                // In-App Glass Update Notification Banner (shown ONLY when a real newer GitHub release is published)
                 AnimatedVisibility(
                     visible = hasNewAppUpdate &&
-                        dismissedUpdateBannerForVersion != state.settings.latestAvailableVersion &&
+                        dismissedUpdateBannerForVersion != detectedGitHubReleaseTag &&
                         !state.isSettingsOpen,
                     enter = fadeIn(tween(240)),
                     exit = fadeOut(tween(180)),
@@ -408,9 +409,9 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                         Column {
                             Text(
                                 text = if (isKhmer) {
-                                    "មានកំណែថ្មី v${state.settings.latestAvailableVersion}"
+                                    "មានកំណែថ្មី $detectedGitHubReleaseTag លើ GitHub"
                                 } else {
-                                    "New Update v${state.settings.latestAvailableVersion} Available"
+                                    "New GitHub Release $detectedGitHubReleaseTag"
                                 },
                                 style = MaterialTheme.typography.labelLarge,
                                 color = tokens.textPrimary,
@@ -418,9 +419,9 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                             )
                             Text(
                                 text = if (isKhmer) {
-                                    "កំណែបច្ចុប្បន្ន v${state.settings.appVersion}"
+                                    "ចុចដើម្បីទាញយក និងដំឡើង APK"
                                 } else {
-                                    "Installed v${state.settings.appVersion} • Tap Update"
+                                    "${GitHubSyncHelper.OFFICIAL_REPO_SLUG} • Tap to Download"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = tokens.textSecondary
@@ -436,20 +437,7 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                                     )
                                 )
                                 .clickable {
-                                    val newVer = state.settings.latestAvailableVersion
-                                    viewModel.updateSettings {
-                                        it.copy(
-                                            appVersion = newVer,
-                                            latestAvailableVersion = newVer
-                                        )
-                                    }
-                                    viewModel.showToast(
-                                        if (isKhmer) {
-                                            "បានអាប់ដេតទៅ v$newVer ដោយជោគជ័យ!"
-                                        } else {
-                                            "App updated to v$newVer!"
-                                        }
-                                    )
+                                    viewModel.openSettings()
                                 }
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center
@@ -466,7 +454,7 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                                 .size(26.dp)
                                 .clip(CircleShape)
                                 .clickable {
-                                    dismissedUpdateBannerForVersion = state.settings.latestAvailableVersion
+                                    dismissedUpdateBannerForVersion = detectedGitHubReleaseTag
                                 },
                             contentAlignment = Alignment.Center
                         ) {
