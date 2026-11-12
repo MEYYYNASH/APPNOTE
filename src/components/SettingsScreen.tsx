@@ -19,6 +19,8 @@ import {
   Languages,
   EyeOff,
   Bell,
+  Music,
+  Sliders,
   HardDrive,
   Trash2,
   Download,
@@ -55,6 +57,7 @@ interface SettingsScreenProps {
   onExportBackupJson: () => string;
   onImportBackupJson: (json: string) => boolean;
   onShowToast: (msg: string) => void;
+  onOpenSoundSettings?: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -68,6 +71,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onExportBackupJson,
   onImportBackupJson,
   onShowToast,
+  onOpenSoundSettings,
 }) => {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
@@ -781,6 +785,32 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 className="w-5 h-5 rounded-md accent-blue-500"
               />
             </label>
+
+            {/* Custom Reminder & Sound Settings button */}
+            {onOpenSoundSettings && (
+              <button
+                type="button"
+                onClick={onOpenSoundSettings}
+                className="flex items-center justify-between p-3 rounded-2xl glass-field hover:bg-black/5 dark:hover:bg-white/5 transition-all text-left"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center">
+                    <Music size={16} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold">
+                      {isKm ? "សំឡេងរំលឹក និងរោទ៍ (Sound Settings)" : "Custom Reminder & Sound Settings"}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      {isKm ? "សំឡេងរោទ៍ រំញ័រ កម្រិតសំឡេង និងរបៀបកុំរំខាន" : "Ringtones, volume sliders, vibration patterns & DND"}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-blue-500 hover:underline">
+                  Configure →
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Data & Storage Section */}

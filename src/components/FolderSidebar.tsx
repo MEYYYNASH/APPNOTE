@@ -3,50 +3,49 @@ import { FolderItem, Note } from '../types/note';
 import {
   Folder,
   FolderPlus,
-  FolderTree,
   Pin,
   Archive,
   Trash2,
   ChevronRight,
   ChevronDown,
-  MoreVertical,
   Edit2,
-  Sparkles,
-  Briefcase,
-  Code,
-  Book,
-  Heart,
-  Star,
-  FileText,
-  Clock,
-  CheckSquare,
-  Image,
-  Bell,
-  Search,
   RotateCcw,
   Plus,
+  Search,
+  FileText,
+  CheckSquare,
+  Clock,
+  Image,
+  Bell,
+  Briefcase,
+  Book,
+  Code,
+  Tag,
+  Heart,
+  Star,
+  Layers,
+  ArrowUpDown,
+  MoreVertical,
 } from 'lucide-react';
 
-export const FOLDER_ICONS: Record<string, React.FC<{ size?: number; className?: string }>> = {
+export const FOLDER_ICONS: Record<string, React.ElementType> = {
   folder: Folder,
   briefcase: Briefcase,
-  code: Code,
   book: Book,
-  sparkles: Sparkles,
+  code: Code,
+  tag: Tag,
   heart: Heart,
   star: Star,
-  archive: Archive,
-  'file-text': FileText,
+  layers: Layers,
 };
 
 export const FOLDER_COLORS = [
   '#3B82F6', // Blue
   '#10B981', // Green
   '#F59E0B', // Amber
-  '#8B5CF6', // Purple
   '#EC4899', // Pink
+  '#8B5CF6', // Purple
   '#06B6D4', // Cyan
-  '#EF4444', // Red
   '#64748B', // Slate
 ];
 
@@ -63,6 +62,7 @@ interface FolderSidebarProps {
   onTogglePinFolder: (folderId: string) => void;
   onToggleArchiveFolder: (folderId: string) => void;
   onRestoreFolder: (folderId: string) => void;
+  onMoveNoteToFolder?: (noteId: string, folderName: string) => void;
 }
 
 export const FolderSidebar: React.FC<FolderSidebarProps> = ({
@@ -78,6 +78,7 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
   onTogglePinFolder,
   onToggleArchiveFolder,
   onRestoreFolder,
+  onMoveNoteToFolder,
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
     'f-product': true,
@@ -86,6 +87,8 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
   const [showArchived, setShowArchived] = useState(false);
   const [showTrashed, setShowTrashed] = useState(false);
   const [folderSearch, setFolderSearch] = useState('');
+  const [folderSortBy, setFolderSortBy] = useState<'name' | 'notesCount' | 'created'>('name');
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
 
   const toggleExpand = (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -121,34 +124,71 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
 
   // Active user folders
   const activeFolders = folders.filter((f) => !f.isTrashed && !f.isArchived);
-  const pinnedFolders = activeFolders.filter((f) => f.isPinned);
   const archivedFolders = folders.filter((f) => !f.isTrashed && f.isArchived);
   const trashedFolders = folders.filter((f) => f.isTrashed);
+
+  // Sorting folders
+  const sortedFolders = [...activeFolders].sort((a, b) => {
+    // Pinned folders first
+    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+    if (folderSortBy === 'notesCount') {
+      return getFolderNoteCount(b.name) - getFolderNoteCount(a.name);
+    }
+    if (folderSortBy === 'created') {
+      return b.createdAt - a.createdAt;
+    }
+    return a.name.localeCompare(b.name);
+  });
 
   // Filtered by search if any
   const q = folderSearch.toLowerCase().trim();
   const searchMatched = q
-    ? activeFolders.filter((f) => f.name.toLowerCase().includes(q))
+    ? sortedFolders.filter((f) => f.name.toLowerCase().includes(q))
     : null;
+
+  // Drag and drop handler for moving note onto folder
+  const handleDragOver = (folderId: string, e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverFolderId(folderId);
+  };
+
+  const handleDragLeave = (folderId: string) => {
+    if (dragOverFolderId === folderId) {
+      setDragOverFolderId(null);
+    }
+  };
+
+  const handleDrop = (folderName: string, e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverFolderId(null);
+    const noteId = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('application/x-note-id');
+    if (noteId && onMoveNoteToFolder) {
+      onMoveNoteToFolder(noteId, folderName);
+    }
+  };
 
   // Render a folder node with nested children
   const renderFolderNode = (folder: FolderItem, depth = 0) => {
     const isSelected = selectedFolderId === folder.id && !selectedSmartFolder;
-    const subfolders = activeFolders.filter((f) => f.parentId === folder.id);
+    const subfolders = sortedFolders.filter((f) => f.parentId === folder.id);
     const hasSubfolders = subfolders.length > 0;
     const isExpanded = !!expandedFolders[folder.id];
     const IconComponent = FOLDER_ICONS[folder.icon] || Folder;
     const noteCount = getFolderNoteCount(folder.name);
+    const isDragTarget = dragOverFolderId === folder.id;
 
     return (
       <div key={folder.id} className="flex flex-col">
         <div
-          onClick={() => {
-            onSelectFolder(folder.id);
-          }}
+          onClick={() => onSelectFolder(folder.id)}
+          onDragOver={(e) => handleDragOver(folder.id, e)}
+          onDragLeave={() => handleDragLeave(folder.id)}
+          onDrop={(e) => handleDrop(folder.name, e)}
           style={{ paddingLeft: `${10 + depth * 14}px` }}
           className={`group relative flex items-center justify-between pr-2 py-1.5 rounded-xl cursor-pointer text-xs font-medium transition-all ${
-            isSelected
+            isDragTarget
+              ? 'ring-2 ring-blue-500 bg-blue-500/20 scale-[1.02]'
+              : isSelected
               ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-bold border border-blue-500/30 shadow-sm'
               : 'hover:bg-black/5 dark:hover:bg-white/5 text-slate-700 dark:text-slate-300'
           }`}
@@ -177,36 +217,40 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
 
           <div className="flex items-center gap-1.5 flex-none">
             {folder.isPinned && <Pin size={11} className="text-amber-500 fill-amber-500" />}
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/5 dark:bg-white/10 text-slate-400 font-semibold">
+
+            {/* Note Counter */}
+            <span
+              title={`${noteCount} notes in ${folder.name}`}
+              className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/5 dark:bg-white/10 text-slate-400 font-semibold"
+            >
               {noteCount}
             </span>
 
-            {/* Folder 3-dots Menu Button */}
+            {/* Quick Context menu trigger */}
             <div className="relative">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setFolderMenuId(folderMenuId === folder.id ? null : folder.id);
                 }}
-                className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 rounded-md transition-opacity"
               >
-                <MoreVertical size={13} />
+                <MoreVertical size={12} />
               </button>
 
-              {/* Dropdown Menu */}
               {folderMenuId === folder.id && (
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-6 z-40 w-44 rounded-2xl glass-panel-elevated p-1.5 shadow-xl border border-white/30 text-xs flex flex-col gap-0.5 animate-in fade-in"
+                  className="absolute right-0 top-full mt-1 w-44 rounded-2xl glass-panel-elevated p-1.5 shadow-xl border border-white/30 z-30 flex flex-col gap-0.5 text-xs animate-in fade-in"
                 >
                   <button
                     onClick={() => {
                       onCreateFolder(folder.id);
                       setFolderMenuId(null);
                     }}
-                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-left"
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-left font-medium"
                   >
-                    <FolderPlus size={13} className="text-blue-500" />
+                    <Plus size={13} />
                     <span>Add Subfolder</span>
                   </button>
                   <button
@@ -217,7 +261,7 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
                     className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 text-left"
                   >
                     <Edit2 size={13} />
-                    <span>Rename & Style</span>
+                    <span>Rename / Style</span>
                   </button>
                   <button
                     onClick={() => {
@@ -267,28 +311,43 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
 
   return (
     <div className="flex flex-col h-full p-2.5 overflow-hidden">
-      {/* Folder Search */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5 mb-2 rounded-xl glass-field border border-white/20 text-xs">
-        <Search size={13} className="text-slate-400 flex-none" />
-        <input
-          type="text"
-          value={folderSearch}
-          onChange={(e) => setFolderSearch(e.target.value)}
-          placeholder="Filter folders..."
-          className="bg-transparent outline-none w-full text-xs"
-        />
-        {folderSearch && (
-          <button onClick={() => setFolderSearch('')} className="text-slate-400">
-            ×
-          </button>
-        )}
+      {/* Folder Search & Sort Bar */}
+      <div className="flex items-center gap-1.5 mb-2">
+        <div className="flex-1 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl glass-field border border-white/20 text-xs">
+          <Search size={13} className="text-slate-400 flex-none" />
+          <input
+            type="text"
+            value={folderSearch}
+            onChange={(e) => setFolderSearch(e.target.value)}
+            placeholder="Search folders..."
+            className="bg-transparent outline-none w-full text-xs"
+          />
+          {folderSearch && (
+            <button onClick={() => setFolderSearch('')} className="text-slate-400">
+              ×
+            </button>
+          )}
+        </div>
+
+        {/* Folder Sorting selector */}
+        <button
+          onClick={() => {
+            setFolderSortBy((prev) =>
+              prev === 'name' ? 'notesCount' : prev === 'notesCount' ? 'created' : 'name'
+            );
+          }}
+          title={`Sort Folders: ${folderSortBy}`}
+          className="p-1.5 rounded-xl glass-field hover:bg-black/5 dark:hover:bg-white/5 text-slate-500 flex-none flex items-center justify-center text-[10px] font-bold"
+        >
+          <ArrowUpDown size={13} />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-none text-xs">
         {/* Smart Folders Section */}
         <div>
           <div className="flex items-center justify-between px-2 mb-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>Smart Views</span>
+            <span>Smart Folders</span>
           </div>
           <div className="space-y-0.5">
             {SMART_FOLDERS.map((sf) => {
@@ -320,7 +379,7 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
         {/* User Folders Section */}
         <div>
           <div className="flex items-center justify-between px-2 mb-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            <span>Folders</span>
+            <span>Folders ({activeFolders.length})</span>
             <button
               onClick={() => onCreateFolder(null)}
               title="New Folder"
@@ -341,7 +400,7 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
           ) : (
             <div className="space-y-0.5">
               {/* Root-level folders (parentId === null) */}
-              {activeFolders
+              {sortedFolders
                 .filter((f) => !f.parentId)
                 .map((rootFolder) => renderFolderNode(rootFolder, 0))}
             </div>
@@ -349,8 +408,7 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
         </div>
 
         {/* Archived Folders Toggle */}
-        {archivedFolders.length > 0 && (
-          <div className="pt-1 border-t border-white/15">
+        {archivedFolders.length > 0 && (          <div className="pt-1 border-t border-white/15">
             <button
               onClick={() => setShowArchived((v) => !v)}
               className="w-full flex items-center justify-between px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-600"
@@ -383,7 +441,7 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
           </div>
         )}
 
-        {/* Recently Deleted Folders Toggle */}
+        {/* Recently Deleted Folders Toggle (Restore Deleted Folders) */}
         {trashedFolders.length > 0 && (
           <div className="pt-1 border-t border-white/15">
             <button
@@ -392,7 +450,7 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
             >
               <div className="flex items-center gap-1.5">
                 <Trash2 size={12} />
-                <span>Recently Deleted ({trashedFolders.length})</span>
+                <span>Deleted Folders ({trashedFolders.length})</span>
               </div>
               {showTrashed ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </button>
@@ -406,8 +464,8 @@ export const FolderSidebar: React.FC<FolderSidebarProps> = ({
                     <span className="truncate text-red-500">{f.name}</span>
                     <button
                       onClick={() => onRestoreFolder(f.id)}
-                      title="Restore folder"
-                      className="flex items-center gap-1 text-blue-500 hover:underline text-[11px]"
+                      title="Restore deleted folder"
+                      className="flex items-center gap-1 text-blue-500 hover:underline text-[11px] font-semibold"
                     >
                       <RotateCcw size={11} />
                       <span>Restore</span>

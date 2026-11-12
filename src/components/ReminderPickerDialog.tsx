@@ -1,23 +1,33 @@
 import React, { useState } from 'react';
 import { AppStrings } from '../types/note';
-import { Bell, X, Calendar } from 'lucide-react';
+import { SoundSettings, PRESET_SOUNDS, SoundVibrationMode } from '../types/sound';
+import { Bell, X, Calendar, Music, Volume2, Sliders, Check } from 'lucide-react';
 
 interface ReminderPickerDialogProps {
   currentReminderAt?: number | null;
+  currentSoundId?: string;
+  soundSettings: SoundSettings;
   strings: AppStrings;
   isKhmer: boolean;
   onDismiss: () => void;
-  onSetReminder: (timestamp: number | null) => void;
+  onSetReminder: (timestamp: number | null, soundId?: string) => void;
+  onOpenSoundSettings?: () => void;
 }
 
 export const ReminderPickerDialog: React.FC<ReminderPickerDialogProps> = ({
   currentReminderAt,
+  currentSoundId,
+  soundSettings,
   strings,
   isKhmer,
   onDismiss,
   onSetReminder,
+  onOpenSoundSettings,
 }) => {
   const [customDateTime, setCustomDateTime] = useState('');
+  const [selectedSoundId, setSelectedSoundId] = useState<string>(
+    currentSoundId || soundSettings.selectedSoundId || 'gentle-glass'
+  );
 
   const now = Date.now();
   const presets = [
@@ -49,7 +59,7 @@ export const ReminderPickerDialog: React.FC<ReminderPickerDialogProps> = ({
     if (!customDateTime) return;
     const ts = new Date(customDateTime).getTime();
     if (!isNaN(ts) && ts > Date.now()) {
-      onSetReminder(ts);
+      onSetReminder(ts, selectedSoundId);
       onDismiss();
     }
   };
@@ -63,6 +73,8 @@ export const ReminderPickerDialog: React.FC<ReminderPickerDialogProps> = ({
       minute: '2-digit',
     });
   };
+
+  const allAvailableSounds = [...PRESET_SOUNDS, ...soundSettings.customSounds];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
@@ -98,13 +110,48 @@ export const ReminderPickerDialog: React.FC<ReminderPickerDialogProps> = ({
           </div>
         )}
 
+        {/* Per-Reminder Sound Selection */}
+        <div className="p-3 rounded-2xl glass-card space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
+              <Music size={13} className="text-blue-500" />
+              <span>Reminder Sound</span>
+            </div>
+            {onOpenSoundSettings && (
+              <button
+                type="button"
+                onClick={() => {
+                  onDismiss();
+                  onOpenSoundSettings();
+                }}
+                className="text-[11px] text-blue-500 font-semibold hover:underline flex items-center gap-1"
+              >
+                <Sliders size={11} />
+                <span>Audio Settings</span>
+              </button>
+            )}
+          </div>
+
+          <select
+            value={selectedSoundId}
+            onChange={(e) => setSelectedSoundId(e.target.value)}
+            className="w-full px-3 py-1.5 rounded-xl glass-field outline-none font-medium cursor-pointer"
+          >
+            {allAvailableSounds.map((snd) => (
+              <option key={snd.id} value={snd.id}>
+                {snd.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Quick Presets */}
         <div className="flex flex-col gap-2">
           {presets.map((preset, idx) => (
             <button
               key={idx}
               onClick={() => {
-                onSetReminder(preset.time);
+                onSetReminder(preset.time, selectedSoundId);
                 onDismiss();
               }}
               className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl glass-field hover:bg-blue-500/10 hover:border-blue-400 transition-all text-sm font-medium text-left"

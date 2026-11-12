@@ -25,7 +25,12 @@ import {
   calculateStorageBytes,
   exportFullBackupJson,
   importFullBackupJson,
+  loadSoundSettings,
+  saveSoundSettings,
 } from './services/storage';
+import { SoundSettings, DEFAULT_SOUND_SETTINGS } from './types/sound';
+import { SoundSettingsDialog } from './components/SoundSettingsDialog';
+import { playReminderAudio } from './utils/audio';
 import { playNotificationChime } from './utils/audio';
 
 import { GlassBackground } from './components/GlassBackground';
@@ -44,6 +49,8 @@ import { ReminderPickerDialog } from './components/ReminderPickerDialog';
 import { HistoryDialog } from './components/HistoryDialog';
 import { QuickCaptureDialog } from './components/QuickCaptureDialog';
 import { NoteContextSheet } from './components/NoteContextSheet';
+import { TemplatesModal } from './components/TemplatesModal';
+import { NoteTemplate } from './types/templates';
 
 export const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>(() => loadNotes());
@@ -104,6 +111,9 @@ export const App: React.FC = () => {
   const [photoCropBase64, setPhotoCropBase64] = useState<string | null>(null);
   const [isReminderPickerOpen, setIsReminderPickerOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false);
+  const [soundSettings, setSoundSettings] = useState<SoundSettings>(() => loadSoundSettings());
+  const [isSoundSettingsOpen, setIsSoundSettingsOpen] = useState(false);
 
   const saveTimerRef = useRef<number | null>(null);
 
@@ -222,7 +232,7 @@ export const App: React.FC = () => {
         const updated = currentNotes.map((n) => {
           if (n.reminderAt && n.reminderAt <= now && !n.reminderFired && !n.isTrashed) {
             hasFired = true;
-            playNotificationChime();
+            playReminderAudio(n.reminderSoundId || soundSettings.selectedSoundId, soundSettings);
             showToast(`Reminder: ${n.title || strings.untitledNote}`);
             return { ...n, reminderFired: true };
           }
@@ -528,6 +538,61 @@ export const App: React.FC = () => {
     showToast(nextArch ? 'Archived' : 'Restored from archive');
   };
 
+  const handleMoveNoteToFolder = (noteId: string, targetFolder: string) => {
+    const updated = notes.map((n) =>
+      n.id === noteId ? { ...n, folder: targetFolder, updatedAt: Date.now() } : n
+    );
+    persistNotes(updated);
+    showToast(targetFolder ? `Moved to "${targetFolder}"` : "Removed from folder");
+  };
+
+  const handleCopyNoteToFolder = (noteId: string, targetFolder?: string) => {
+    const orig = notes.find((n) => n.id === noteId);
+    if (!orig) return;
+    const now = Date.now();
+    const destFolder = targetFolder !== undefined ? targetFolder : orig.folder;
+    const dup: Note = {
+      ...orig,
+      id: `n_${now}_${Math.random().toString(36).slice(2, 6)}`,
+      title: orig.title ? `${orig.title} (Copy)` : "Copy",
+      folder: destFolder,
+      isPinned: false,
+      createdAt: now,
+      updatedAt: now,
+      activityLog: [{ id: `l_${now}`, timestamp: now, action: `copied to ${destFolder || "root"}` }],
+    };
+    persistNotes([dup, ...notes]);
+    setSelectedNoteId(dup.id);
+    showToast(destFolder ? `Copied to "${destFolder}"` : "Note copied");
+  };
+
+  const handleSelectTemplate = (tmpl: NoteTemplate) => {
+    const now = Date.now();
+    const folderToUse = activeFolderObj?.name || "";
+    const newNote: Note = {
+      id: `n_${now}_${Math.random().toString(36).slice(2, 6)}`,
+      title: tmpl.defaultTitle,
+      body: tmpl.defaultBody,
+      isChecklist: tmpl.isChecklist,
+      checklist: tmpl.checklist ? [...tmpl.checklist] : [],
+      color: settings.accent,
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      tags: [...tmpl.tags],
+      folder: folderToUse,
+      attachments: [],
+      versions: [],
+      activityLog: [{ id: `l_${now}`, timestamp: now, action: `created from template: ${tmpl.title}` }],
+      createdAt: now,
+      updatedAt: now,
+    };
+    persistNotes([newNote, ...notes]);
+    setSelectedNoteId(newNote.id);
+    setIsEditorOpenOnMobile(true);
+    showToast(`Created from template: ${tmpl.title}`);
+  };
+
   const handleTogglePin = (noteId: string) => {
     const next = notes.map((n) =>
       n.id === noteId ? { ...n, isPinned: !n.isPinned, updatedAt: Date.now() } : n
@@ -619,13 +684,14 @@ export const App: React.FC = () => {
     showToast('Version restored');
   };
 
-  const handleSetReminder = (ts: number | null) => {
+  const handleSetReminder = (ts: number | null, soundId?: string) => {
     if (!selectedNoteId) return;
     const next = notes.map((n) =>
       n.id === selectedNoteId
         ? {
             ...n,
             reminderAt: ts,
+            reminderSoundId: soundId || n.reminderSoundId,
             reminderFired: false,
             updatedAt: Date.now(),
           }
@@ -842,6 +908,7 @@ export const App: React.FC = () => {
             return false;
           }}
           onShowToast={showToast}
+          onOpenSoundSettings={() => setIsSoundSettingsOpen(true)}
         />
       ) : (
         /* Main 3-Pane or 2-Pane Responsive View */
@@ -872,6 +939,7 @@ export const App: React.FC = () => {
                 onTogglePinFolder={handleTogglePinFolder}
                 onToggleArchiveFolder={handleToggleArchiveFolder}
                 onRestoreFolder={handleRestoreFolder}
+          onMoveNoteToFolder={handleMoveNoteToFolder}
               />
             </div>
           )}
@@ -936,6 +1004,7 @@ export const App: React.FC = () => {
                 setIsEditorOpenOnMobile(true);
               }}
               onCreateNote={() => handleCreateNote()}
+              onOpenTemplates={() => setIsTemplatesModalOpen(true)}
               onOpenScanner={() => setIsScannerOpen(true)}
               onQuickCapture={() => setIsQuickCaptureOpen(true)}
               onToggleTheme={toggleTheme}
@@ -1010,11 +1079,14 @@ export const App: React.FC = () => {
       {contextMenuNote && (
         <NoteContextSheet
           note={contextMenuNote}
+          folders={folders}
           strings={strings}
           onDismiss={() => setContextMenuNote(null)}
           onSelectColor={(c) => handleSelectColor(contextMenuNote.id, c)}
           onTogglePin={() => handleTogglePin(contextMenuNote.id)}
           onDuplicate={() => handleDuplicateNote(contextMenuNote.id)}
+          onCopyNote={(targetFolder) => handleCopyNoteToFolder(contextMenuNote.id, targetFolder)}
+          onMoveNote={(targetFolder) => handleMoveNoteToFolder(contextMenuNote.id, targetFolder)}
           onToggleArchive={() => handleToggleArchive(contextMenuNote.id)}
           onDelete={() => handleDeleteNote(contextMenuNote.id)}
         />
@@ -1070,10 +1142,27 @@ export const App: React.FC = () => {
       {isReminderPickerOpen && selectedNote && (
         <ReminderPickerDialog
           currentReminderAt={selectedNote.reminderAt}
+          currentSoundId={selectedNote.reminderSoundId}
+          soundSettings={soundSettings}
           strings={strings}
           isKhmer={isKhmer}
           onDismiss={() => setIsReminderPickerOpen(false)}
           onSetReminder={handleSetReminder}
+          onOpenSoundSettings={() => setIsSoundSettingsOpen(true)}
+        />
+      )}
+
+      {/* Custom Reminder & Sound Settings Modal */}
+      {isSoundSettingsOpen && (
+        <SoundSettingsDialog
+          settings={soundSettings}
+          isKhmer={isKhmer}
+          onDismiss={() => setIsSoundSettingsOpen(false)}
+          onSaveSettings={(newSettings) => {
+            setSoundSettings(newSettings);
+            saveSoundSettings(newSettings);
+          }}
+          onShowToast={showToast}
         />
       )}
 

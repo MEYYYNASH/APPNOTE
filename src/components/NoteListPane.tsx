@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Note,
   FilterTab,
@@ -10,9 +10,10 @@ import {
   DateModeFilter,
   FolderItem,
   NoteSortOption,
-} from '../types/note';
-import { AppGlassLogo } from './AppGlassLogo';
+} from "../types/note";
+import { AppGlassLogo } from "./AppGlassLogo";
 import {
+  LayoutTemplate,
   Search,
   X,
   SlidersHorizontal,
@@ -38,8 +39,7 @@ import {
   Calendar,
   Sparkles,
   ChevronDown,
-} from 'lucide-react';
-
+} from "lucide-react";
 interface NoteListPaneProps {
   notes: Note[];
   recentNotes: Note[];
@@ -70,6 +70,7 @@ interface NoteListPaneProps {
   onToggleFolderSidebar: () => void;
   onSelectNote: (noteId: string) => void;
   onCreateNote: () => void;
+  onOpenTemplates?: () => void;
   onOpenScanner: () => void;
   onQuickCapture: () => void;
   onToggleTheme: () => void;
@@ -108,6 +109,7 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
   onToggleFolderSidebar,
   onSelectNote,
   onCreateNote,
+  onOpenTemplates,
   onOpenScanner,
   onQuickCapture,
   onToggleTheme,
@@ -423,6 +425,11 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
             return (
               <div
                 key={note.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", note.id);
+                  e.dataTransfer.setData("application/x-note-id", note.id);
+                }}
                 onClick={() => onSelectNote(note.id)}
                 className={`group relative w-full text-left p-3.5 pl-5 rounded-2xl glass-card cursor-pointer border transition-all ${
                   isSelected
@@ -510,6 +517,17 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
           })
         )}
       </div>
+
+      {/* Templates & New Note Buttons */}
+      {onOpenTemplates && (
+        <button
+          onClick={onOpenTemplates}
+          title="Note Templates"
+          className="absolute right-20 bottom-5 h-13 px-3.5 rounded-2xl glass-panel-elevated border border-white/40 text-blue-500 hover:text-blue-600 flex items-center gap-1.5 shadow-lg hover:scale-105 active:scale-95 transition-all text-xs font-bold z-20"
+        >
+          <span className="hidden sm:inline">Templates</span>
+        </button>
+      )}
 
       {/* Floating Action Button (New Note) */}
       <button

@@ -1,3 +1,4 @@
+import { SoundSettings, DEFAULT_SOUND_SETTINGS } from '../types/sound';
 import { Note, AppSettings, ChecklistItem, NoteVersion, ActivityLogEntry, FolderItem } from '../types/note';
 
 const PREFS_NAME = 'glass_notes_local_storage';
@@ -20,7 +21,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   snapshotIntervalSec: 30,
   notificationsEnabled: false,
   hidePreviews: false,
-  webAppMode: false,
+  
   githubOwnerRepo: 'MEYYYNASH/APPNOTE',
   githubBranch: 'main',
   githubToken: '',
@@ -358,5 +359,25 @@ export function importFullBackupJson(
     return { notes, settings, folders };
   } catch {
     return null;
+  }
+}
+
+const KEY_SOUND_SETTINGS = "glassnotes_sound_settings";
+
+export function loadSoundSettings(): SoundSettings {
+  try {
+    const raw = localStorage.getItem(KEY_SOUND_SETTINGS);
+    if (!raw) return DEFAULT_SOUND_SETTINGS;
+    return { ...DEFAULT_SOUND_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_SOUND_SETTINGS;
+  }
+}
+
+export function saveSoundSettings(settings: SoundSettings): void {
+  try {
+    localStorage.setItem(KEY_SOUND_SETTINGS, JSON.stringify(settings));
+  } catch {
+    // ignore
   }
 }

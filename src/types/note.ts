@@ -130,6 +130,7 @@ export interface Note {
   trashedAt?: number | null;
   reminderAt?: number | null;
   reminderFired?: boolean;
+  reminderSoundId?: string;
   tags: string[];
   folder: string;
   attachments: NoteAttachment[];
@@ -153,7 +154,7 @@ export interface AppSettings {
   snapshotIntervalSec: number;
   notificationsEnabled: boolean;
   hidePreviews: boolean;
-  webAppMode: boolean;
+  
   githubOwnerRepo: string;
   githubBranch: string;
   githubToken: string;
@@ -233,7 +234,7 @@ export interface AppStrings {
   emptyTrashBtn: string;
   copyBackupBtn: string;
   restoreBackupBtn: string;
-  webModeBtn: string;
+  
   aboutTitle: string;
   backendNotice: string;
   trashBanner: string;
@@ -311,7 +312,7 @@ export const TRANSLATIONS: Record<LanguageOption, AppStrings> = {
     emptyTrashBtn: "Empty trash",
     copyBackupBtn: "Copy backup",
     restoreBackupBtn: "Restore backup",
-    webModeBtn: "Web view",
+    
     aboutTitle: "Notes, version 1.1.15",
     backendNotice: "Notes, version 1.1.15. Data stays on this device in localStorage (with in-memory fallback). Use GitHub Sync above to push releases and JSON backups directly to your repository.",
     trashBanner: "Deleted · tap any note to restore",
@@ -387,7 +388,7 @@ export const TRANSLATIONS: Record<LanguageOption, AppStrings> = {
     emptyTrashBtn: "សម្អាតធុងសំរាម",
     copyBackupBtn: "ចម្លងទិន្នន័យបម្រុង",
     restoreBackupBtn: "ស្តារទិន្នន័យបម្រុង",
-    webModeBtn: "មើលទម្រង់វេប",
+    
     aboutTitle: "Notes, កំណែ 1.1.15",
     backendNotice: "ទិន្នន័យទាំងអស់រក្សាទុកក្នុងឧបករណ៍នេះ។ អ្នកអាចរុញឯកសារ APK និងទិន្នន័យបម្រុងទៅកាន់ GitHub ផ្ទាល់ពីផ្នែកខាងលើ។",
     trashBanner: "បានលុប · ចុចដើម្បីស្តារឡើងវិញ",
