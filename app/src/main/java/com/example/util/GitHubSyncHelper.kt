@@ -90,6 +90,7 @@ data class GitHubReleaseInfo(
 
 object GitHubSyncHelper {
 
+    const val OFFICIAL_PACKAGE_NAME = "com.aistudio.glassnotes.vqpzxm"
     const val OFFICIAL_OWNER = "MEYYYNASH"
     const val OFFICIAL_REPO = "APPNOTE"
     const val OFFICIAL_REPO_SLUG = "$OFFICIAL_OWNER/$OFFICIAL_REPO"
@@ -999,13 +1000,12 @@ object GitHubSyncHelper {
             } else {
                 archiveInfo.versionCode.toLong()
             }
-            val effectiveVersionCode = maxOf(archiveVersionCode, releaseInfo.latestVersionCode)
-            if (effectiveVersionCode < installed.versionCode) {
+            if (archiveVersionCode < installed.versionCode) {
                 targetApkFile.delete()
                 return@withContext releaseInfo.copy(
                     state = UpdateState.FAILED,
                     statusMessage = UpdateState.FAILED.statusTextEn,
-                    errorDetail = "Rejected downgrade APK: versionCode $effectiveVersionCode is older than installed ${installed.versionCode}."
+                    errorDetail = "Rejected downgrade APK: APK internal versionCode ($archiveVersionCode / v${archiveInfo.versionName}) is older than installed (${installed.versionCode} / v${installed.versionName})."
                 )
             }
 
@@ -1331,7 +1331,7 @@ object GitHubSyncHelper {
      * Strictly normalizes any user input into a valid Git tag (e.g. "v1.1.8").
      * Prevents GitHub's "Make sure you have a valid tag" error.
      */
-    fun sanitizeGitTag(rawInput: String, fallback: String = "v1.1.8"): String {
+    fun sanitizeGitTag(rawInput: String, fallback: String = "v1.1.18"): String {
         val trimmed = rawInput.trim()
         if (trimmed.isEmpty()) return fallback
         val cleaned = trimmed
@@ -1348,11 +1348,11 @@ object GitHubSyncHelper {
     }
 
     /**
-     * Builds a pre-filled GitHub New Release web URL (`?tag=v1.1.8&title=...&body=...`)
+     * Builds a pre-filled GitHub New Release web URL (`?tag=v1.1.18&title=...&body=...`)
      * so GitHub Web automatically populates a valid tag and never fails with "Make sure you have a valid tag".
      */
     fun buildNewReleaseWebUrl(tagNameInput: String, releaseNotesInput: String): String {
-        val validTag = sanitizeGitTag(tagNameInput, "v1.1.8")
+        val validTag = sanitizeGitTag(tagNameInput, "v1.1.18")
         val title = "APPNOTE $validTag"
         val body = if (releaseNotesInput.isNotBlank()) {
             releaseNotesInput.trim()
@@ -1489,8 +1489,33 @@ object GitHubSyncHelper {
                     out.write(tagRefPayload.toString().toByteArray(Charsets.UTF_8))
                     out.flush()
                 }
-                refConn.responseCode
+                val refCode = refConn.responseCode
                 refConn.disconnect()
+                if (refCode !in 200..299) {
+                    // Tag already exists (e.g. 422), force-update refs/tags/<tagName> to point to headSha
+                    val updateRefPayload = JSONObject().apply {
+                        put("sha", headSha)
+                        put("force", true)
+                    }
+                    val patchConn = (URL("https://api.github.com/repos/$OFFICIAL_REPO_SLUG/git/refs/tags/$tagName").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "POST"
+                        doOutput = true
+                        connectTimeout = 12000
+                        readTimeout = 12000
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        setRequestProperty("Authorization", "Bearer $token")
+                        setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                        setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                        setRequestProperty("X-HTTP-Method-Override", "PATCH")
+                        setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+                    }
+                    patchConn.outputStream.use { out ->
+                        out.write(updateRefPayload.toString().toByteArray(Charsets.UTF_8))
+                        out.flush()
+                    }
+                    patchConn.responseCode
+                    patchConn.disconnect()
+                }
             } catch (_: Exception) {
             }
         }
@@ -1523,7 +1548,7 @@ object GitHubSyncHelper {
     }
 
     /**
-     * Publishes a new GitHub Release directly to `MEY-NASHH/APPNOTE/releases` using the GitHub Releases REST API
+     * Publishes a new GitHub Release directly to `MEYYYNASH/APPNOTE/releases` using the GitHub Releases REST API
      * and uploads the signed `app-release.apk`, `app-release.apk.sha256`, and `release-metadata.json` as release assets.
      */
     suspend fun createAndUploadGitHubRelease(
@@ -1546,7 +1571,7 @@ object GitHubSyncHelper {
             )
         }
 
-        val tagName = sanitizeGitTag(tagNameInput, "v1.1.8")
+        val tagName = sanitizeGitTag(tagNameInput, "v1.1.18")
         val cleanVersion = tagName.removePrefix("v").removePrefix("V")
         val remoteVersionCode = deriveVersionCodeFromTag(tagName).coerceAtLeast(installed.versionCode + 1L)
 
@@ -1651,6 +1676,11 @@ object GitHubSyncHelper {
             val releaseId = releaseJson.optLong("id", 0L)
             val uploadBaseUrl = "https://uploads.github.com/repos/$OFFICIAL_REPO_SLUG/releases/$releaseId/assets"
 
+            // Delete any stale assets on this release so fresh v1.1.18 assets overwrite cleanly
+            listOf("release-metadata.json", "app-release.apk.sha256", "app-release.apk", "GlassNotes.apk").forEach { assetName ->
+                deleteReleaseAssetIfPresent(releaseJson, assetName, cleanToken)
+            }
+
             // Upload release-metadata.json
             onStatus("Uploading release-metadata.json & SHA-256...")
             val metaJson = JSONObject().apply {
@@ -1658,6 +1688,7 @@ object GitHubSyncHelper {
                 put("tagName", tagName)
                 put("versionName", cleanVersion)
                 put("versionCode", remoteVersionCode)
+                put("packageName", OFFICIAL_PACKAGE_NAME)
                 put("apkFileName", "app-release.apk")
                 put("sha256", apkSha256)
                 put("signingCertSha256", installed.signingCertSha256)
@@ -1704,6 +1735,31 @@ object GitHubSyncHelper {
                 installedVersionCode = installed.versionCode,
                 errorDetail = e.localizedMessage ?: "Failed to publish GitHub Release"
             )
+        }
+    }
+
+    private fun deleteReleaseAssetIfPresent(releaseJson: JSONObject, targetAssetName: String, token: String) {
+        try {
+            val assets = releaseJson.optJSONArray("assets") ?: return
+            for (i in 0 until assets.length()) {
+                val asset = assets.optJSONObject(i) ?: continue
+                val name = asset.optString("name", "")
+                val assetId = asset.optLong("id", 0L)
+                if (assetId > 0L && name.equals(targetAssetName, ignoreCase = true)) {
+                    val delConn = (URL("https://api.github.com/repos/$OFFICIAL_REPO_SLUG/releases/assets/$assetId").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "DELETE"
+                        connectTimeout = 10000
+                        readTimeout = 10000
+                        setRequestProperty("Accept", "application/vnd.github+json")
+                        setRequestProperty("Authorization", "Bearer $token")
+                        setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                        setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+                    }
+                    delConn.responseCode
+                    delConn.disconnect()
+                }
+            }
+        } catch (_: Exception) {
         }
     }
 

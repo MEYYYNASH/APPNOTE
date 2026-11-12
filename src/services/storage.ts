@@ -154,106 +154,97 @@ export function saveFolders(folders: FolderItem[]): boolean {
 
 export function createSeedNotes(): Note[] {
   const now = Date.now();
-  const n1Created = now - 3600_000 * 5;
-  const n2Created = now - 3600_000 * 18;
-  const n3Created = now - 3600_000 * 42;
+  const n1Created = now - 3600_000 * 2;
+  const n2Created = now - 3600_000 * 3;
+  const n3Created = now - 3600_000 * 18;
+  const n4Created = now - 3600_000 * 22;
 
   return [
     {
-      id: 'seed-1',
-      title: 'Glassmorphism Design System',
-      body: '# Frosted Glass Principles\n\nOur interface uses **translucent panels** with `26px backdrop blur`, saturation boost, and a crisp `1px` specular edge.\n\n- Soft drifting color blobs in blue, violet, and cyan\n- Two-color gradient accents across interactive pills\n- Clean 2px rounded line icons only',
+      id: 'bento-project-ideas',
+      title: 'Project Ideas',
+      body: 'Build a modern note app with AI features, multi-page document scanner, rich markdown editor, and custom reminder sounds.',
       isChecklist: false,
       checklist: [],
       color: 'blue',
       isPinned: true,
       isArchived: false,
       isTrashed: false,
-      tags: ['design', 'architecture', 'ui'],
+      tags: ['project', 'ideas', 'ui'],
       folder: 'Product',
       attachments: [],
       versions: [
         {
-          id: 'v-seed-1',
+          id: 'v-bento-1',
           timestamp: n1Created,
-          title: 'Glassmorphism Design System',
-          body: '# Frosted Glass Principles\nInitial specification draft for translucent cards.',
+          title: 'Project Ideas',
+          body: 'Build a modern note app with AI features...',
           checklist: [],
           isChecklist: false,
         },
       ],
-      activityLog: [
-        { id: 'l-1', timestamp: now - 1800_000, action: 'edited' },
-        { id: 'l-0', timestamp: n1Created, action: 'created' },
-      ],
+      activityLog: [{ id: 'l-1', timestamp: n1Created, action: 'created' }],
       createdAt: n1Created,
-      updatedAt: now - 1800_000,
+      updatedAt: now - 600_000,
     },
     {
-      id: 'seed-2',
-      title: 'Release Sprint Checklist',
+      id: 'bento-shopping-list',
+      title: 'Shopping List',
       body: '',
       isChecklist: true,
       checklist: [
-        { id: 'c-1', text: 'Configure Figtree, Serif, and Mono typography', isDone: true },
-        { id: 'c-2', text: 'Verify two-pane layout on wide screens and mobile slide', isDone: true },
-        { id: 'c-3', text: 'Test Voice, Image, Scan, and Drawing canvas attachments', isDone: true },
-        { id: 'c-4', text: 'Add English and Khmer language translations', isDone: false },
-        { id: 'c-5', text: 'Prepare JSON backup and restore verification', isDone: false },
+        { id: 'shop-1', text: 'Milk', isDone: true },
+        { id: 'shop-2', text: 'Bread', isDone: true },
+        { id: 'shop-3', text: 'Coffee', isDone: false },
       ],
       color: 'violet',
       isPinned: true,
       isArchived: false,
       isTrashed: false,
-      tags: ['roadmap', 'sprint'],
-      folder: 'Engineering',
+      tags: ['shopping', 'personal'],
+      folder: 'Personal',
       attachments: [],
-      versions: [
-        {
-          id: 'v-seed-2',
-          timestamp: n2Created,
-          title: 'Release Sprint Checklist',
-          body: '',
-          checklist: [
-            { id: 'c-1', text: 'Configure Figtree, Serif, and Mono typography', isDone: true },
-            { id: 'c-2', text: 'Verify two-pane layout on wide screens and mobile slide', isDone: false },
-          ],
-          isChecklist: true,
-        },
-      ],
-      activityLog: [
-        { id: 'l-3', timestamp: now - 3600_000 * 2, action: 'edited' },
-        { id: 'l-2', timestamp: n2Created, action: 'created' },
-      ],
+      versions: [],
+      activityLog: [{ id: 'l-2', timestamp: n2Created, action: 'created' }],
       createdAt: n2Created,
-      updatedAt: now - 3600_000 * 2,
+      updatedAt: now - 1200_000,
     },
     {
-      id: 'seed-3',
-      title: 'Offline & LocalStorage Architecture',
-      body: '## Privacy First Storage\n\nAll notes, attachments, and version snapshots are saved in **local storage** wrapped in `try/catch` with an automatic in-memory fallback.\n\n- Data is preserved securely right on this device\n- Export full JSON backups anytime from Settings\n\n### What Was Added & Updated\n\n- **Real-Time Download Speed (MB/s):** Low-pass filtered speed tracking displaying smooth instantaneous transfer rates without erratic jumping.\n- **Speed Time to End (ETA):** Automatically calculates remaining completion time (e.g. `12s left`, `1m 15s left`, and Khmer `12 វិ`, `1 ន 15 វិ`).\n- **Live MB Progress Counter:** Real-time bytes transferred vs total file size (`18.4 MB / 45.2 MB`) alongside percentage.\n- **Live Download HUD in Settings:** Animated glass gradient progress bar, Speedometer metric card, Time to End metric card, and one-tap cancel.\n- **"Test Download Speed":** Benchmark latency (ping in ms) and CDN throughput (MB/s) with quality ratings (Ultra Fast, Fast, Good).',
+      id: 'bento-meeting-notes',
+      title: 'Meeting Notes',
+      body: 'Discuss the new project and timeline with engineering and design teams.',
       isChecklist: false,
       checklist: [],
       color: 'green',
       isPinned: false,
       isArchived: false,
       isTrashed: false,
-      tags: ['privacy', 'storage', 'update'],
-      folder: 'Architecture',
+      tags: ['meeting', 'timeline'],
+      folder: 'Engineering',
+      reminderAt: now + 3600_000 * 2,
       attachments: [],
-      versions: [
-        {
-          id: 'v-seed-3',
-          timestamp: n3Created,
-          title: 'Offline & LocalStorage Architecture',
-          body: 'All notes are stored locally on device.',
-          checklist: [],
-          isChecklist: false,
-        },
-      ],
-      activityLog: [{ id: 'l-4', timestamp: n3Created, action: 'created' }],
+      versions: [],
+      activityLog: [{ id: 'l-3', timestamp: n3Created, action: 'created' }],
       createdAt: n3Created,
       updatedAt: n3Created,
+    },
+    {
+      id: 'bento-daily-journal',
+      title: 'Daily Journal',
+      body: 'Today is a great day! ✨ Focused on shipping v1.1.18 with interactive glass widgets and neon bento cards.',
+      isChecklist: false,
+      checklist: [],
+      color: 'pink',
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      tags: ['journal', 'daily'],
+      folder: 'Personal',
+      attachments: [],
+      versions: [],
+      activityLog: [{ id: 'l-4', timestamp: n4Created, action: 'created' }],
+      createdAt: n4Created,
+      updatedAt: n4Created,
     },
   ];
 }
@@ -269,13 +260,20 @@ export function loadNotes(): Note[] {
     const list: Note[] = JSON.parse(raw);
     const now = Date.now();
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-    // Purge trashed notes older than 30 days
-    return list.filter((n) => {
+    const active = list.filter((n) => {
       if (n.isTrashed && n.trashedAt && now - n.trashedAt > thirtyDaysMs) {
         return false;
       }
       return true;
     });
+    // Ensure the 4 Bento showcase notes are present if user only had old seed notes
+    const hasBento = active.some((n) => n.id.startsWith('bento-'));
+    if (!hasBento) {
+      const merged = [...createSeedNotes(), ...active];
+      saveNotes(merged);
+      return merged;
+    }
+    return active;
   } catch {
     const seeded = createSeedNotes();
     saveNotes(seeded);
@@ -292,14 +290,28 @@ export function loadSettings(): AppSettings {
   if (!raw) return DEFAULT_SETTINGS;
   try {
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const latestVer =
+      !parsed.latestAvailableVersion ||
+      parsed.latestAvailableVersion === 'v1.1.17' ||
+      parsed.latestAvailableVersion === '1.1.17'
+        ? 'v1.1.18'
+        : parsed.latestAvailableVersion;
+    const upgraded: AppSettings = {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      githubOwnerRepo: 'MEYYYNASH/APPNOTE',
+      appVersion: '1.1.18',
+      latestAvailableVersion: latestVer,
+    };
+    saveSettings(upgraded);
+    return upgraded;
   } catch {
     return DEFAULT_SETTINGS;
   }
 }
 
 export function saveSettings(settings: AppSettings): boolean {
-  return safeSet(KEY_SETTINGS, JSON.stringify(settings));
+  return safeSet(KEY_SETTINGS, JSON.stringify({ ...settings, appVersion: '1.1.18' }));
 }
 
 export function loadRecentSearches(): string[] {

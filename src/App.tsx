@@ -946,7 +946,7 @@ export const App: React.FC = () => {
 
           {/* Column 2: Note List Pane */}
           <div
-            className={`w-full md:w-[380px] md:flex-none h-full transition-all duration-300 ${
+            className={`w-full md:w-[430px] md:flex-none h-full transition-all duration-300 ${
               isEditorOpenOnMobile ? 'hidden md:flex' : 'flex'
             }`}
           >
@@ -1011,6 +1011,19 @@ export const App: React.FC = () => {
               onOpenSettings={() => setIsSettingsOpen(true)}
               onOpenContextMenu={(n) => setContextMenuNote(n)}
               onEmptyTrash={handleEmptyTrash}
+              onToggleChecklistItem={(noteId, itemId) => {
+                const updated = notes.map((n) => {
+                  if (n.id !== noteId) return n;
+                  return {
+                    ...n,
+                    updatedAt: Date.now(),
+                    checklist: n.checklist.map((item) =>
+                      item.id === itemId ? { ...item, isDone: !item.isDone } : item
+                    ),
+                  };
+                });
+                persistNotes(updated);
+              }}
             />
           </div>
 

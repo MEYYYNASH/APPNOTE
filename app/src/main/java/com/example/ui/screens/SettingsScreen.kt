@@ -80,6 +80,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.fillMaxHeight
 import com.example.ui.components.AppGlassLogo
+import com.example.ui.components.CustomReminderSoundSettingsCard
 import com.example.ui.components.GlassActionPill
 import com.example.ui.components.GlassIconButton
 import com.example.ui.components.GlassOuterPane
@@ -111,7 +112,7 @@ fun SettingsScreen(
     onEmptyTrash: () -> Unit,
     onExportBackupJson: () -> String,
     onImportBackupJson: (String) -> Boolean,
-    onOpenWebMode: () -> Unit,
+    onOpenWebMode: () -> Unit = {},
     onShowToast: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -154,8 +155,10 @@ fun SettingsScreen(
     var speedTestResult by remember { mutableStateOf<SpeedTestResult?>(null) }
     var showReleaseNotesDialog by remember { mutableStateOf(false) }
     var showPublishReleaseDialog by remember { mutableStateOf(false) }
-    var publishTagInput by remember { mutableStateOf("v1.1.0") }
-    var publishNotesInput by remember { mutableStateOf("APPNOTE stable release with glass blur, voice WAV, photo crop & GitHub auto-update.") }
+    var publishTagInput by remember { mutableStateOf("v1.1.18") }
+    var publishNotesInput by remember {
+        mutableStateOf("APPNOTE v1.1.18: Glass Widgets Strip, Neon Bento Grid, Folders Manager, Multi-Page Document Scanner (OCR & PDF), Rich Text Editor, and 24 Custom Reminder & Sound Settings.")
+    }
     var publishTokenInput by remember(settings.githubToken) { mutableStateOf(settings.githubToken) }
     var isPublishingRelease by remember { mutableStateOf(false) }
     var publishStatusMessage by remember { mutableStateOf("") }
@@ -1032,6 +1035,17 @@ fun SettingsScreen(
                         }
                     }
 
+                    // Card 1B: Suite 4 — Custom Reminder & Sound Settings (24 controls)
+                    item {
+                        CustomReminderSoundSettingsCard(
+                            settings = settings,
+                            accentColor = tokens.accentStart,
+                            isKhmer = isKm,
+                            onUpdateSettings = onUpdateSettings,
+                            onShowToast = onShowToast
+                        )
+                    }
+
                     // Card 2: Main Settings & Font Import from Drive
                     item {
                         GlassPanel(
@@ -1345,11 +1359,6 @@ fun SettingsScreen(
                                             }
                                         }
                                     )
-                                    SettingsActionBtn(
-                                        label = strings.webModeBtn,
-                                        testTag = "setting_web_mode_button",
-                                        onClick = onOpenWebMode
-                                    )
                                 }
 
                                 // Collapsible Restore Backup textarea
@@ -1536,7 +1545,7 @@ fun SettingsScreen(
                         )
                     }
 
-                    val normalizedTag = GitHubSyncHelper.sanitizeGitTag(publishTagInput, "v1.1.8")
+                    val normalizedTag = GitHubSyncHelper.sanitizeGitTag(publishTagInput, "v1.1.18")
 
                     Text(
                         text = "Target: ${GitHubSyncHelper.OFFICIAL_REPO_SLUG}/releases • Valid Tag: $normalizedTag",
@@ -1551,7 +1560,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        listOf("v1.1.8", "v1.1.9", "v1.2.0").forEach { presetTag ->
+                        listOf("v1.1.18", "v1.1.19", "v1.2.0").forEach { presetTag ->
                             val isSelectedTag = normalizedTag.equals(presetTag, ignoreCase = true)
                             Box(
                                 modifier = Modifier

@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release version tag (e.g. v1.1.15)'
+        description: 'Release version tag (e.g. v1.1.18)'
         required: false
         default: 'v1.1.18'
 
@@ -59,14 +59,14 @@ jobs:
           elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
             TAG_NAME="${{ github.event.inputs.release_tag }}"
           else
-            TAG_NAME="v1.1.$((8 + ${GITHUB_RUN_NUMBER:-7}))"
+            TAG_NAME="v1.1.18"
           fi
           CLEAN_VERSION="${TAG_NAME#v}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "${CLEAN_VERSION}"
           MAJOR=${MAJOR:-1}
           MINOR=${MINOR:-1}
           PATCH=${PATCH%%[^0-9]*}
-          PATCH=${PATCH:-15}
+          PATCH=${PATCH:-18}
           VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_name=${CLEAN_VERSION}" >> "$GITHUB_OUTPUT"
@@ -74,6 +74,11 @@ jobs:
 
           sed -i "s/versionCode = [0-9]\+/versionCode = ${VERSION_CODE}/g" app/build.gradle.kts || true
           sed -i "s/versionName = \"[^\"]*\"/versionName = \"${CLEAN_VERSION}\"/g" app/build.gradle.kts || true
+
+          git config user.name "github-actions[bot]" || true
+          git config user.email "github-actions[bot]@users.noreply.github.com" || true
+          git tag -f "${TAG_NAME}" "${GITHUB_SHA}" || true
+          git push origin "refs/tags/${TAG_NAME}" --force || true
 
       - name: Build & Sign Android APK with Official Keystore
         run: |
@@ -93,6 +98,10 @@ jobs:
           BUILD_TOOLS_DIR=$(ls -d "$ANDROID_HOME/build-tools/"* 2>/dev/null | sort -V | tail -n 1 || true)
           if [ -n "$BUILD_TOOLS_DIR" ] && [ -x "$BUILD_TOOLS_DIR/apksigner" ]; then
             APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+            AAPT="$BUILD_TOOLS_DIR/aapt"
+            if [ -x "$AAPT" ]; then
+              "$AAPT" dump badging app-release.apk | head -n 5
+            fi
             "$APKSIGNER" sign \
               --ks "${GITHUB_WORKSPACE}/debug.keystore" \
               --ks-key-alias androiddebugkey \
@@ -119,6 +128,7 @@ jobs:
           cat <<EOF > release-metadata.json
           {
             "repository": "${GITHUB_REPOSITORY}",
+            "packageName": "com.aistudio.glassnotes.vqpzxm",
             "tagName": "${{ steps.version_meta.outputs.tag_name }}",
             "versionName": "${{ steps.version_meta.outputs.version_name }}",
             "versionCode": ${{ steps.version_meta.outputs.version_code }},
@@ -162,10 +172,12 @@ jobs:
           name: "APPNOTE ${{ steps.version_meta.outputs.tag_name }}"
           draft: false
           prerelease: false
+          overwrite_files: true
           generate_release_notes: true
           body: |
             ## APPNOTE ${{ steps.version_meta.outputs.tag_name }}
             - **Repository:** `${{ github.repository }}`
+            - **Package Name:** `com.aistudio.glassnotes.vqpzxm`
             - **Version Name:** `${{ steps.version_meta.outputs.version_name }}`
             - **Version Code:** `${{ steps.version_meta.outputs.version_code }}`
             - **APK Asset:** `app-release.apk` (`GlassNotes.apk`)

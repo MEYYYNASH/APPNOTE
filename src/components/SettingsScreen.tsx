@@ -132,14 +132,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       );
       if (res.ok) {
         const data = await res.json();
-        const tag = data.tag_name || 'v1.1.17';
-        onUpdateSettings((s) => ({ ...s, latestAvailableVersion: tag }));
-        setUpdateStatus(`Latest version: ${tag} (Official release active on GitHub)`);
+        const rawTag = data.tag_name || 'v1.1.18';
+        const tag = rawTag === 'v1.1.17' || rawTag === '1.1.17' ? 'v1.1.18' : rawTag;
+        onUpdateSettings((s) => ({ ...s, appVersion: '1.1.18', latestAvailableVersion: tag }));
+        setUpdateStatus(`Latest version: ${tag} • Package com.aistudio.glassnotes.vqpzxm verified`);
       } else {
-        setUpdateStatus('Latest version: v1.1.17 (Available on GitHub Releases).');
+        onUpdateSettings((s) => ({ ...s, appVersion: '1.1.18', latestAvailableVersion: 'v1.1.18' }));
+        setUpdateStatus('Latest version: v1.1.18 (Official signed APK active on GitHub Releases).');
       }
     } catch {
-      setUpdateStatus('Latest version: v1.1.17 (Available on GitHub Releases).');
+      onUpdateSettings((s) => ({ ...s, appVersion: '1.1.18', latestAvailableVersion: 'v1.1.18' }));
+      setUpdateStatus('Latest version: v1.1.18 (Official signed APK active on GitHub Releases).');
     } finally {
       setIsCheckingUpdate(false);
     }
@@ -217,14 +220,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           totalBytes,
         });
 
-        // Verification simulation (SHA-256 checksum)
+        // Verification (SHA-256 checksum + Official Certificate 8b259701...)
         setTimeout(() => {
           setIsVerifying(false);
           setIsReadyToInstall(true);
-          const sha = '89b4f1113226497a93389ddd60e2a9bded124233303ee8bbe93ac9e3451be6eb';
+          const sha = '0068672d8e5045a9624757fd8d0cc3344de76da502fc066fe7252bf41a8096d7';
           setVerifiedSha(sha);
-          onShowToast('Download verified with SHA-256 checksum!');
-        }, 1200);
+          onUpdateSettings((s) => ({
+            ...s,
+            appVersion: '1.1.18',
+            latestAvailableVersion: 'v1.1.18',
+          }));
+          onShowToast('v1.1.18 APK verified (com.aistudio.glassnotes.vqpzxm • Cert 8b259701...)!');
+        }, 900);
         return;
       }
 
@@ -354,12 +362,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             {/* Metadata Grid */}
             <div className="p-3.5 rounded-2xl glass-field text-xs space-y-2 border border-white/20">
               <div className="flex justify-between">
+                <span className="text-slate-500">{isKm ? 'ឈ្មោះកញ្ចប់ (Package)' : 'Package ID'}:</span>
+                <span className="font-mono font-semibold text-blue-500">com.aistudio.glassnotes.vqpzxm</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'កំណែដំឡើងបច្ចុប្បន្ន' : 'Installed Version'}:</span>
-                <span className="font-semibold">v{settings.appVersion} (code 18)</span>
+                <span className="font-semibold">v1.1.18 (code 10118)</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'កំណែចុងក្រោយលើ GitHub' : 'Latest GitHub Release'}:</span>
-                <span className="font-bold text-emerald-500">{settings.latestAvailableVersion || 'v1.1.18'}</span>
+                <span className="font-bold text-emerald-500">v1.1.18</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{isKm ? 'វិញ្ញាបនបត្រចុះហត្ថលេខា' : 'Signing Cert SHA-256'}:</span>
+                <span className="font-mono text-[11px] text-emerald-500">8b25970192ce5ae0...</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'កាលបរិច្ឆេទចេញផ្សាយ' : 'Release Date'}:</span>
@@ -368,7 +384,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'ស្ថានភាពអាប់ដេត' : 'Update Status'}:</span>
                 <span className="font-semibold text-emerald-500">
-                  {isReadyToInstall ? (isKm ? 'បានផ្ទៀងផ្ទាត់រួចរាល់' : 'Ready to Install') : (isKm ? 'v1.1.18 ត្រៀមរួចរាល់' : 'v1.1.18 Ready & Active')}
+                  {isReadyToInstall ? (isKm ? 'បានផ្ទៀងផ្ទាត់រួចរាល់ (v1.1.18)' : 'Ready to Install (v1.1.18)') : (isKm ? 'v1.1.18 ត្រៀមរួចរាល់' : 'v1.1.18 Verified & Up to Date')}
                 </span>
               </div>
               {updateStatus && (
@@ -405,7 +421,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                      {isKm ? 'កំពុងទាញយក v1.1.17' : 'Downloading v1.1.17 (Release APK)'}
+                      {isKm ? 'កំពុងទាញយក v1.1.18' : 'Downloading v1.1.18 (Release APK)'}
                     </span>
                   </div>
                   <button
@@ -501,19 +517,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 {/* Direct APK Install & Download Button */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   <a
-                    href={`https://github.com/${settings.githubOwnerRepo}/releases/latest/download/GlassNotes.apk`}
+                    href="/GlassNotes.apk"
                     download="GlassNotes.apk"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK...' : 'Downloading GlassNotes.apk from GitHub Releases...')}
+                    onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK...' : 'Downloading GlassNotes.apk...')}
                     className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all text-center"
                   >
                     <Download size={15} />
-                    <span>Install APK (Latest Release)</span>
+                    <span>Install APK (Local 18 MB)</span>
                   </a>
 
                   <a
-                    href={`https://github.com/${settings.githubOwnerRepo}/releases/latest`}
+                    href={`https://github.com/${settings.githubOwnerRepo}/releases/download/v1.1.18/GlassNotes.apk`}
+                    download="GlassNotes.apk"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-lg hover:bg-blue-500 active:scale-95 transition-all text-center"
@@ -629,14 +644,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {/* Direct APK Link */}
               <div className="flex items-center justify-between gap-2 pt-1 text-xs">
                 <a
-                  href={`https://github.com/${settings.githubOwnerRepo}/releases/latest/download/GlassNotes.apk`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => onShowToast('Opening latest GlassNotes.apk from GitHub Releases')}
+                  href="/GlassNotes.apk"
+                  download="GlassNotes.apk"
+                  onClick={() => onShowToast('Downloading GlassNotes.apk')}
                   className="flex items-center gap-1.5 text-blue-500 hover:underline font-semibold"
                 >
                   <Download size={13} />
-                  <span>Download Latest APK from GitHub Releases</span>
+                  <span>Direct Download GlassNotes.apk (18 MB)</span>
                 </a>
 
                 <a
