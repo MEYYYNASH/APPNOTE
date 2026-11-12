@@ -139,7 +139,7 @@ data class AppSettings(
     val notificationsEnabled: Boolean = false,
     val hidePreviews: Boolean = false,
     val webAppMode: Boolean = false,
-    val githubOwnerRepo: String = "MEY-NASHH/APPNOTE",
+    val githubOwnerRepo: String = "MEYYYNASH/APPNOTE",
     val githubBranch: String = "main",
     val githubToken: String = "",
     val appVersion: String = "1.0",

@@ -121,7 +121,9 @@ class NotesRepository(context: Context) {
                 notificationsEnabled = obj.optBoolean("notificationsEnabled", false),
                 hidePreviews = obj.optBoolean("hidePreviews", false),
                 webAppMode = obj.optBoolean("webAppMode", false),
-                githubOwnerRepo = obj.optString("githubOwnerRepo", "MEY-NASHH/APPNOTE"),
+                githubOwnerRepo = obj.optString("githubOwnerRepo", "MEYYYNASH/APPNOTE").let {
+                    if (it.equals("MEY-NASHH/APPNOTE", ignoreCase = true) || it.isBlank()) "MEYYYNASH/APPNOTE" else it
+                },
                 githubBranch = obj.optString("githubBranch", "main"),
                 githubToken = obj.optString("githubToken", ""),
                 appVersion = obj.optString("appVersion", "1.0"),

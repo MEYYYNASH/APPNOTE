@@ -62,7 +62,7 @@ data class GitHubReleaseInfo(
 
 object GitHubSyncHelper {
 
-    const val OFFICIAL_OWNER = "MEY-NASHH"
+    const val OFFICIAL_OWNER = "MEYYYNASH"
     const val OFFICIAL_REPO = "APPNOTE"
     const val OFFICIAL_REPO_SLUG = "$OFFICIAL_OWNER/$OFFICIAL_REPO"
     const val OFFICIAL_REPO_URL = "https://github.com/$OFFICIAL_REPO_SLUG"
@@ -678,15 +678,34 @@ object GitHubSyncHelper {
             }
         }
 
-        // If repository has 0 commits (empty repo), GitHub rejects any tag/release with "Make sure you have a valid tag".
-        // Initialize the repo by committing README.md via the Contents API.
-        if (headSha.isBlank()) {
-            onStatus("Initializing empty GitHub repository with initial commit on $defaultBranch...")
-            try {
-                val readmeContent = "# APPNOTE\n\nOfficial repository for APPNOTE Android releases.\n"
+        // Ensure README.md exists on the repository (fixes "Add a README" empty box on github.com/MEYYYNASH/APPNOTE
+        // and also initializes the repository if it had 0 commits)
+        try {
+            val checkReadmeConn = (URL("https://api.github.com/repos/$OFFICIAL_REPO_SLUG/contents/README.md").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10000
+                readTimeout = 10000
+                setRequestProperty("Accept", "application/vnd.github+json")
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+            }
+            val readmeExists = checkReadmeConn.responseCode in 200..299
+            checkReadmeConn.disconnect()
+
+            if (!readmeExists || headSha.isBlank()) {
+                onStatus("Creating README.md on $OFFICIAL_REPO_SLUG ($defaultBranch)...")
+                val readmeContent = buildString {
+                    appendLine("# APPNOTE (GlassNotes)")
+                    appendLine()
+                    appendLine("Official repository for **APPNOTE** Android application and direct APK releases.")
+                    appendLine()
+                    appendLine("- **Latest Releases:** [https://github.com/$OFFICIAL_REPO_SLUG/releases](https://github.com/$OFFICIAL_REPO_SLUG/releases)")
+                    appendLine("- **Latest Tag:** `$tagName`")
+                }
                 val readmeBase64 = Base64.encodeToString(readmeContent.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
                 val initPayload = JSONObject().apply {
-                    put("message", "Initial commit for APPNOTE releases")
+                    put("message", "Add README.md for APPNOTE ($tagName)")
                     put("content", readmeBase64)
                     put("branch", defaultBranch)
                 }
@@ -707,14 +726,15 @@ object GitHubSyncHelper {
                 }
                 if (initConn.responseCode in 200..299) {
                     val initResp = JSONObject(initConn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
-                    headSha = initResp.optJSONObject("commit")?.optString("sha", "").orEmpty()
+                    val newCommitSha = initResp.optJSONObject("commit")?.optString("sha", "").orEmpty()
+                    if (newCommitSha.isNotBlank()) headSha = newCommitSha
                 }
                 initConn.disconnect()
-            } catch (_: Exception) {
             }
-            if (headSha.isBlank()) {
-                headSha = fetchBranchHeadSha(token, defaultBranch)
-            }
+        } catch (_: Exception) {
+        }
+        if (headSha.isBlank()) {
+            headSha = fetchBranchHeadSha(token, defaultBranch)
         }
 
         // Explicitly create `refs/tags/<tagName>` pointing to `headSha` if we have a valid commit SHA
