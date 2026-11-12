@@ -1,6 +1,6 @@
 {
   "name": "glassnotes",
-  "version": "1.1.18",
+  "version": "1.1.19",
   "private": true,
   "description": "A clean glassmorphic mobile-first Notes app with checklists, voice, drawing, scan attachments, version history, and bilingual support.",
   "type": "module",

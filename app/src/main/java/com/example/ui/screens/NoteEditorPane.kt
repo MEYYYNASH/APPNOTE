@@ -143,7 +143,7 @@ private val NOTE_TEMPLATES = listOf(
         title = "🚀 Project Specification",
         subtitle = "Goals, architecture, milestones & table",
         defaultTitle = "Project Ideas",
-        defaultBody = "# Project Specification\n\n> Build a modern note app with rich formatting and offline sync.\n\n## Core Features\n- Rich Markdown & Tables\n- Multi-page Document Scanner\n- Custom Reminder Sounds\n\n| Milestone | Owner | Status |\n| --- | --- | --- |\n| UI Design | Design | Done |\n| Release v1.1.18 | Eng | Active |",
+        defaultBody = "# Project Specification\n\n> Build a modern note app with rich formatting and offline sync.\n\n## Core Features\n- Rich Markdown & Tables\n- Multi-page Document Scanner\n- Custom Reminder Sounds\n\n| Milestone | Owner | Status |\n| --- | --- | --- |\n| UI Design | Design | Done |\n| Release v1.1.19 | Eng | Active |",
         folder = "Projects"
     ),
     NoteTemplateOption(
@@ -159,7 +159,7 @@ private val NOTE_TEMPLATES = listOf(
         title = "💻 Technical Snippet",
         subtitle = "Code block, architecture notes & links",
         defaultTitle = "Code & Architecture Note",
-        defaultBody = "# Technical Note\n\n```kotlin\nfun verifyRelease(version: String): Boolean {\n    return version == \"1.1.18\"\n}\n```\n\nReference: [GitHub Repository](https://github.com/MEYYYNASH/APPNOTE)",
+        defaultBody = "# Technical Note\n\n```kotlin\nfun verifyRelease(version: String): Boolean {\n    return version == \"1.1.19\"\n}\n```\n\nReference: [GitHub Repository](https://github.com/MEYYYNASH/APPNOTE)",
         folder = "Projects"
     )
 )

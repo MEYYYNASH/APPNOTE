@@ -30,7 +30,7 @@
             android:background="@drawable/bg_widget_neon_pill"
             android:paddingHorizontal="6dp"
             android:paddingVertical="2dp"
-            android:text="1.1.18"
+            android:text="1.1.19"
             android:textColor="#FFFFFFFF"
             android:textSize="9sp"
             android:textStyle="bold" />

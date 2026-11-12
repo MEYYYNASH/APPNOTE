@@ -215,8 +215,8 @@ class NotesRepository(context: Context) {
                 },
                 githubBranch = obj.optString("githubBranch", "main"),
                 githubToken = obj.optString("githubToken", ""),
-                appVersion = obj.optString("appVersion", "1.1.18").let {
-                    if (it == "1.0" || it == "1.1.17" || it.isBlank()) "1.1.18" else it
+                appVersion = obj.optString("appVersion", "1.1.19").let {
+                    if (it == "1.0" || it == "1.1.17" || it == "1.1.18" || it.isBlank()) "1.1.19" else it
                 },
                 latestAvailableVersion = obj.optString("latestAvailableVersion", ""),
                 includePrereleases = obj.optBoolean("includePrereleases", false),
@@ -736,7 +736,7 @@ class NotesRepository(context: Context) {
             Note(
                 id = "seed-bento-3",
                 title = "Meeting Notes",
-                body = "Discuss the new project and timeline with engineering & design leads. Review Q4 deliverables and release v1.1.18.",
+                body = "Discuss the new project and timeline with engineering & design leads. Review Q4 deliverables and release v1.1.19.",
                 isChecklist = false,
                 color = NoteColor.GREEN,
                 isPinned = false,

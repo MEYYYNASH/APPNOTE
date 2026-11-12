@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release version tag (e.g. v1.1.18)'
+        description: 'Release version tag (e.g. v1.1.19)'
         required: false
-        default: 'v1.1.18'
+        default: 'v1.1.19'
 
 permissions:
   contents: write
@@ -57,14 +57,14 @@ jobs:
           elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
             TAG_NAME="${{ github.event.inputs.release_tag }}"
           else
-            TAG_NAME="v1.1.18"
+            TAG_NAME="v1.1.19"
           fi
           CLEAN_VERSION="${TAG_NAME#v}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "${CLEAN_VERSION}"
           MAJOR=${MAJOR:-1}
           MINOR=${MINOR:-1}
           PATCH=${PATCH%%[^0-9]*}
-          PATCH=${PATCH:-18}
+          PATCH=${PATCH:-19}
           VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_name=${CLEAN_VERSION}" >> "$GITHUB_OUTPUT"
@@ -78,7 +78,7 @@ jobs:
           git tag -f "${TAG_NAME}" "${GITHUB_SHA}" || true
           git push origin "refs/tags/${TAG_NAME}" --force || true
 
-      - name: Build & Sign Android APK (v1.1.18 / 10118) with Official Keystore
+      - name: Build & Sign Android APK (v1.1.19 / 10119) with Official Keystore
         run: |
           touch .env .env.example
           # Normalize AI Studio preview versions to public Google Maven versions for GitHub Actions runner
@@ -101,21 +101,25 @@ jobs:
             exit 1
           fi
 
-          # Guarantee binary AndroidManifest.xml inside app-release.apk has versionName=1.1.18 and versionCode=10118 (never 1.1.14)
-          python3 - << 'PYEOF'
+          # Guarantee binary AndroidManifest.xml inside app-release.apk matches computed CLEAN_VERSION and VERSION_CODE
+          TARGET_VERSION="${{ steps.version_meta.outputs.version_name }}" TARGET_CODE="${{ steps.version_meta.outputs.version_code }}" python3 - << 'PYEOF'
           import zipfile, struct, os, shutil
 
           apk_path = ".ci-release-artifacts/app-release.apk"
           tmp_apk = ".ci-release-artifacts/app-release-patched.apk"
+          ver_str = os.environ.get("TARGET_VERSION", "1.1.19")
+          code_int = int(os.environ.get("TARGET_CODE", "10119"))
           with zipfile.ZipFile(apk_path, "r") as zin:
               manifest = zin.read("AndroidManifest.xml")
-              target_ver = "1.1.18".encode("utf-16le")
-              for old_v in ["1.1.14", "1.1.15", "1.1.16", "1.1.17"]:
-                  manifest = manifest.replace(old_v.encode("utf-16le"), target_ver)
-              target_code = b"\xff\xff\xff\xff\x08\x00\x00\x10" + struct.pack("<I", 10118)
-              for old_c in [14, 15, 16, 17, 18, 10114, 10115, 10116, 10117]:
-                  old_seq = b"\xff\xff\xff\xff\x08\x00\x00\x10" + struct.pack("<I", old_c)
-                  manifest = manifest.replace(old_seq, target_code)
+              target_ver = ver_str.encode("utf-16le")
+              for old_v in ["1.1.14", "1.1.15", "1.1.16", "1.1.17", "1.1.18"]:
+                  if old_v != ver_str:
+                      manifest = manifest.replace(old_v.encode("utf-16le"), target_ver)
+              target_code = b"\xff\xff\xff\xff\x08\x00\x00\x10" + struct.pack("<I", code_int)
+              for old_c in [14, 15, 16, 17, 18, 19, 10114, 10115, 10116, 10117, 10118]:
+                  if old_c != code_int:
+                      old_seq = b"\xff\xff\xff\xff\x08\x00\x00\x10" + struct.pack("<I", old_c)
+                      manifest = manifest.replace(old_seq, target_code)
 
               with zipfile.ZipFile(tmp_apk, "w") as zout:
                   for item in zin.infolist():

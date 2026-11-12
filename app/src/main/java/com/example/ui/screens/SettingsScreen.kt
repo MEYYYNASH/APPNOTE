@@ -156,9 +156,9 @@ fun SettingsScreen(
     var speedTestResult by remember { mutableStateOf<SpeedTestResult?>(null) }
     var showReleaseNotesDialog by remember { mutableStateOf(false) }
     var showPublishReleaseDialog by remember { mutableStateOf(false) }
-    var publishTagInput by remember { mutableStateOf("v1.1.18") }
+    var publishTagInput by remember { mutableStateOf("v1.1.19") }
     var publishNotesInput by remember {
-        mutableStateOf("APPNOTE v1.1.18: Glass Widgets Strip, Neon Bento Grid, Folders Manager, Multi-Page Document Scanner (OCR & PDF), Rich Text Editor, and 24 Custom Reminder & Sound Settings.")
+        mutableStateOf("APPNOTE v1.1.19: Real Jetpack Glance Home Screen Widgets Studio (Small/Medium/Large, live customization, Room/DataStore/WorkManager sync, alarm & boot recovery), Clean Uncluttered Home UI, Folders Manager, Document Scanner (OCR & PDF), and Custom Reminder Sounds.")
     }
     var publishTokenInput by remember(settings.githubToken) { mutableStateOf(settings.githubToken) }
     var isPublishingRelease by remember { mutableStateOf(false) }
@@ -1604,7 +1604,7 @@ fun SettingsScreen(
                         )
                     }
 
-                    val normalizedTag = GitHubSyncHelper.sanitizeGitTag(publishTagInput, "v1.1.18")
+                    val normalizedTag = GitHubSyncHelper.sanitizeGitTag(publishTagInput, "v1.1.19")
 
                     Text(
                         text = "Target: ${GitHubSyncHelper.OFFICIAL_REPO_SLUG}/releases • Valid Tag: $normalizedTag",
@@ -1619,7 +1619,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        listOf("v1.1.18", "v1.1.19", "v1.2.0").forEach { presetTag ->
+                        listOf("v1.1.19", "v1.2.0", "v1.2.1").forEach { presetTag ->
                             val isSelectedTag = normalizedTag.equals(presetTag, ignoreCase = true)
                             Box(
                                 modifier = Modifier
