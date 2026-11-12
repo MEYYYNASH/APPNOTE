@@ -35,7 +35,11 @@ import {
   X,
   ShieldCheck,
   Activity,
+  FileText,
+  PlusCircle,
+  Sparkles,
 } from 'lucide-react';
+import { ReleaseNotesModal } from './ReleaseNotesModal';
 import {
   formatBytes,
   formatSpeed,
@@ -76,6 +80,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const [restoreJsonInput, setRestoreJsonInput] = useState('');
   const [copiedBackup, setCopiedBackup] = useState(false);
 
@@ -341,8 +346,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   GitHub: {settings.githubOwnerRepo}
                 </p>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-white/40 dark:bg-white/10 text-slate-700 dark:text-slate-300">
-                v{settings.appVersion}
+              <span className="px-3 py-1 rounded-full text-xs font-extrabold uppercase bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30 shadow-sm animate-pulse">
+                NEW v1.1.18
               </span>
             </div>
 
@@ -350,16 +355,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <div className="p-3.5 rounded-2xl glass-field text-xs space-y-2 border border-white/20">
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'កំណែដំឡើងបច្ចុប្បន្ន' : 'Installed Version'}:</span>
-                <span className="font-semibold">v{settings.appVersion}</span>
+                <span className="font-semibold">v{settings.appVersion} (code 18)</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">{isKm ? 'កំណែចុងក្រោយលើ GitHub' : 'Latest Release'}:</span>
-                <span className="font-semibold text-blue-500">{settings.latestAvailableVersion || 'v1.1.17'}</span>
+                <span className="text-slate-500">{isKm ? 'កំណែចុងក្រោយលើ GitHub' : 'Latest GitHub Release'}:</span>
+                <span className="font-bold text-emerald-500">{settings.latestAvailableVersion || 'v1.1.18'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{isKm ? 'កាលបរិច្ឆេទចេញផ្សាយ' : 'Release Date'}:</span>
+                <span className="font-medium text-slate-400">2026-11-12 UTC</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'ស្ថានភាពអាប់ដេត' : 'Update Status'}:</span>
                 <span className="font-semibold text-emerald-500">
-                  {isReadyToInstall ? (isKm ? 'បានផ្ទៀងផ្ទាត់រួចរាល់' : 'Ready to Install') : (isKm ? 'ទាន់សម័យ (v1.1.17 Available)' : 'v1.1.17 Active on GitHub')}
+                  {isReadyToInstall ? (isKm ? 'បានផ្ទៀងផ្ទាត់រួចរាល់' : 'Ready to Install') : (isKm ? 'v1.1.18 ត្រៀមរួចរាល់' : 'v1.1.18 Ready & Active')}
                 </span>
               </div>
               {updateStatus && (
@@ -372,8 +381,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             {/* Note for certificate signature update conflict */}
             <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400">
               <span className="font-bold">💡 Note on "Package Conflict" / "Signature Mismatch":</span>{' '}
-              If your phone shows <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 first, then install the latest <strong>v1.1.17 APK</strong> from GitHub Releases.
+              If your phone shows <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 first, then install the latest <strong>v1.1.18 APK</strong> from GitHub Releases.
             </div>
+
+            {/* Prerelease updates toggle checkbox */}
+            <label className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium cursor-pointer py-0.5 select-none">
+              <input
+                type="checkbox"
+                checked={settings.includePrereleases}
+                onChange={(e) =>
+                  onUpdateSettings((s) => ({ ...s, includePrereleases: e.target.checked }))
+                }
+                className="w-4 h-4 rounded accent-blue-500"
+              />
+              <span>Include prerelease updates</span>
+            </label>
 
             {/* Live Download HUD */}
             {isDownloading && (
@@ -523,62 +545,96 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
             )}
 
-            {/* Action Buttons: Check Update, Test Download Speed */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* Primary Action Buttons */}
+            <div className="flex flex-col gap-2.5">
+              {/* Check Update Button */}
               <button
                 onClick={handleCheckUpdate}
                 disabled={isCheckingUpdate || isDownloading}
-                className="flex items-center justify-center gap-2 py-2.5 rounded-2xl glass-field text-xs font-semibold hover:bg-blue-500/10 hover:text-blue-500 transition-all disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl glass-field text-xs font-semibold hover:bg-blue-500/10 hover:text-blue-500 active:scale-95 transition-all disabled:opacity-50"
               >
-                <RefreshCw size={14} className={isCheckingUpdate ? 'animate-spin' : ''} />
-                <span>{isCheckingUpdate ? 'Checking...' : isKm ? 'ពិនិត្យមើលកំណែថ្មី' : 'Check for Updates'}</span>
+                <Bell size={15} className={isCheckingUpdate ? 'animate-spin' : ''} />
+                <span>{isCheckingUpdate ? 'Checking GitHub...' : isKm ? 'ពិនិត្យមើលកំណែថ្មី' : 'Check Update'}</span>
               </button>
 
-              <button
-                onClick={handleTestSpeed}
-                disabled={isTestingSpeed || isDownloading}
-                className="flex items-center justify-center gap-2 py-2.5 rounded-2xl glass-field text-xs font-semibold hover:bg-cyan-500/10 hover:text-cyan-500 transition-all disabled:opacity-50"
-              >
-                <Gauge size={14} className={isTestingSpeed ? 'animate-spin text-cyan-500' : ''} />
-                <span>{isTestingSpeed ? `Testing (${speedTestProgress}%)` : isKm ? 'តេស្តល្បឿនទាញយក' : 'Test Download Speed'}</span>
-              </button>
-            </div>
-
-            {/* Download & Verify Release Button */}
-            {!isDownloading && (
-              <div className="flex flex-col gap-2">
+              {/* Download & Install v1.1.18 Button */}
+              {!isDownloading && (
                 <button
                   onClick={handleStartDownload}
                   disabled={isVerifying}
-                  className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all"
                 >
-                  <Download size={15} />
-                  <span>{isKm ? 'ទាញយក និងផ្ទៀងផ្ទាត់ការអាប់ដេត (Download Update)' : 'Download & Verify Update (HUD)'}</span>
+                  <Download size={16} />
+                  <span>{isKm ? 'ទាញយកការអាប់ដេត (Download Update v1.1.18)' : 'Download Update (v1.1.18)'}</span>
+                </button>
+              )}
+
+              {/* View Release Notes & Add to Releases (GitHub) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => setShowReleaseNotes(true)}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-2xl glass-field text-xs font-semibold hover:bg-purple-500/10 hover:text-purple-400 active:scale-95 transition-all"
+                >
+                  <FileText size={14} className="text-purple-400" />
+                  <span>{isKm ? 'មើលកំណត់ចំណាំកំណែ (Release Notes)' : 'View Release Notes'}</span>
                 </button>
 
-                <div className="flex items-center justify-between gap-2 pt-1 text-xs">
-                  <a
-                    href="/GlassNotes.apk"
-                    download="GlassNotes.apk"
-                    onClick={() => onShowToast('Downloading GlassNotes.apk')}
-                    className="flex items-center gap-1.5 text-blue-500 hover:underline font-semibold"
-                  >
-                    <Download size={13} />
-                    <span>Download GlassNotes.apk</span>
-                  </a>
-
-                  <a
-                    href={`https://github.com/${settings.githubOwnerRepo}/releases`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold"
-                  >
-                    <ExternalLink size={13} />
-                    <span>GitHub Releases</span>
-                  </a>
-                </div>
+                <a
+                  href={`https://github.com/${settings.githubOwnerRepo}/releases/new?tag=v1.1.18&title=APPNOTE+v1.1.18`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-2xl glass-field text-xs font-semibold hover:bg-emerald-500/10 hover:text-emerald-400 active:scale-95 transition-all text-center"
+                >
+                  <PlusCircle size={14} className="text-emerald-400" />
+                  <span>Add to Releases (GitHub)</span>
+                </a>
               </div>
-            )}
+
+              {/* Open GitHub Repository & Test Download Speed */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <a
+                  href={`https://github.com/${settings.githubOwnerRepo}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-2xl glass-field text-xs font-semibold hover:bg-slate-500/10 hover:text-slate-300 active:scale-95 transition-all text-center"
+                >
+                  <ExternalLink size={14} />
+                  <span>Open GitHub Repository</span>
+                </a>
+
+                <button
+                  onClick={handleTestSpeed}
+                  disabled={isTestingSpeed || isDownloading}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-2xl glass-field text-xs font-semibold hover:bg-cyan-500/10 hover:text-cyan-500 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  <Gauge size={14} className={isTestingSpeed ? 'animate-spin text-cyan-500' : ''} />
+                  <span>{isTestingSpeed ? `Testing (${speedTestProgress}%)` : isKm ? 'តេស្តល្បឿនទាញយក' : 'Test Download Speed'}</span>
+                </button>
+              </div>
+
+              {/* Direct APK Link */}
+              <div className="flex items-center justify-between gap-2 pt-1 text-xs">
+                <a
+                  href="/GlassNotes.apk"
+                  download="GlassNotes.apk"
+                  onClick={() => onShowToast('Downloading GlassNotes.apk')}
+                  className="flex items-center gap-1.5 text-blue-500 hover:underline font-semibold"
+                >
+                  <Download size={13} />
+                  <span>Direct Download GlassNotes.apk (18 MB)</span>
+                </a>
+
+                <a
+                  href={`https://github.com/${settings.githubOwnerRepo}/releases`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold"
+                >
+                  <ExternalLink size={13} />
+                  <span>All Releases</span>
+                </a>
+              </div>
+            </div>
           </div>
 
           {/* Appearance Section */}
@@ -937,6 +993,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </div>
       )}
+
+      {/* Release Notes Modal */}
+      <ReleaseNotesModal
+        version={settings.latestAvailableVersion || 'v1.1.18'}
+        isOpen={showReleaseNotes}
+        onClose={() => setShowReleaseNotes(false)}
+        onDownloadApk={() => onShowToast('Downloading GlassNotes.apk')}
+        githubOwnerRepo={settings.githubOwnerRepo}
+      />
     </div>
   );
 };
