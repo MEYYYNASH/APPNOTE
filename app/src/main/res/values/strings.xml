@@ -30,4 +30,10 @@
     <string name="status_saved">Saved</string>
     <string name="settings_title">Settings</string>
     <string name="backend_notice">All data is stored locally in device storage with an in-memory fallback. No server is used. Collaboration, shared folders, and public links require a backend and are not included.</string>
+    <string name="widget_quick_note_desc">Quick Note launcher with tap to write and voice note capture</string>
+    <string name="widget_checklist_desc">Interactive checklist widget — check off tasks directly from your home screen</string>
+    <string name="widget_notes_list_desc">Neon Bento notes list and upcoming reminders with live sync</string>
+    <string name="widget_quick_note_title">Quick Note</string>
+    <string name="widget_tap_to_write">Tap to write...</string>
+    <string name="widget_new_note">+ New Note</string>
 </resources>
