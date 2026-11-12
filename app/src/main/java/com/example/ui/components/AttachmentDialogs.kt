@@ -101,6 +101,7 @@ fun DrawingCanvasDialog(
     val palette = listOf(
         NoteColor.BLUE.startColor,
         NoteColor.VIOLET.startColor,
+        NoteColor.PINK.startColor,
         NoteColor.GREEN.startColor,
         NoteColor.AMBER.startColor,
         Color(0xFF0F172A)
@@ -874,7 +875,7 @@ fun NoteContextBottomSheet(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // 5 Color Dots
+                    // 6 Color Dots (including Pink)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -885,7 +886,7 @@ fun NoteContextBottomSheet(
                             Box(
                                 modifier = Modifier
                                     .testTag("sheet_color_${colorOption.id}")
-                                    .size(48.dp)
+                                    .size(42.dp)
                                     .clip(CircleShape)
                                     .background(
                                         Brush.linearGradient(
@@ -904,7 +905,7 @@ fun NoteContextBottomSheet(
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (isSelected) {
-                                    LineIcon(type = LineIconType.CHECK, tint = Color.White, size = 18.dp)
+                                    LineIcon(type = LineIconType.CHECK, tint = Color.White, size = 16.dp)
                                 }
                             }
                         }

@@ -13,8 +13,9 @@ enum class NoteColor(
     BLUE("blue", "Blue", "ខៀវ", Color(0xFF2F7CFF), Color(0xFF7A5CFF), Color(0xFF3B82F6)),
     GREEN("green", "Green", "បៃតង", Color(0xFF10B981), Color(0xFF06B6D4), Color(0xFF10B981)),
     AMBER("amber", "Amber", "លឿងទុំ", Color(0xFFF59E0B), Color(0xFFEF4444), Color(0xFFF59E0B)),
-    VIOLET("violet", "Violet", "ស្វាយ", Color(0xFFA855F7), Color(0xFFEC4899), Color(0xFFEF4444)),
-    SLATE("slate", "Slate", "ប្រផេះ", Color(0xFF64748B), Color(0xFF0F172A), Color(0xFFA855F7));
+    VIOLET("violet", "Violet", "ស្វាយ", Color(0xFFA855F7), Color(0xFF6366F1), Color(0xFFA855F7)),
+    PINK("pink", "Pink", "ផ្កាឈូក", Color(0xFFEC4899), Color(0xFFF43F5E), Color(0xFFEC4899)),
+    SLATE("slate", "Slate", "ប្រផេះ", Color(0xFF64748B), Color(0xFF0F172A), Color(0xFF64748B));
 
     companion object {
         fun fromId(id: String): NoteColor = entries.find { it.id == id } ?: BLUE

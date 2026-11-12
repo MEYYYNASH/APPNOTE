@@ -64,8 +64,16 @@ fun GlassNotesTheme(
     }
 
     val accent = settings.accent
-    val a1 = if (isDark && accent == NoteColor.BLUE) Color(0xFF4DA3FF) else accent.startColor
-    val a2 = if (isDark && accent == NoteColor.BLUE) Color(0xFF9A7BFF) else accent.endColor
+    val a1 = when {
+        isDark && accent == NoteColor.BLUE -> Color(0xFF4DA3FF)
+        isDark && accent == NoteColor.PINK -> Color(0xFFFF5CA8)
+        else -> accent.startColor
+    }
+    val a2 = when {
+        isDark && accent == NoteColor.BLUE -> Color(0xFF9A7BFF)
+        isDark && accent == NoteColor.PINK -> Color(0xFFFF7EB6)
+        else -> accent.endColor
+    }
 
     val tokens = GlassTokens(
         isDark = isDark,

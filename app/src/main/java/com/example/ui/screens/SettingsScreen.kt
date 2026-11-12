@@ -54,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -599,6 +600,47 @@ fun SettingsScreen(
                                     testTag = "setting_accent_select"
                                 )
 
+                                // Interactive Accent Swatches (Blue, Green, Amber, Violet, Pink, Slate)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp, bottom = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    NoteColor.entries.forEach { accentOption ->
+                                        val isSelected = settings.accent == accentOption
+                                        Box(
+                                            modifier = Modifier
+                                                .testTag("setting_accent_swatch_${accentOption.id}")
+                                                .size(36.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    Brush.linearGradient(
+                                                        listOf(accentOption.startColor, accentOption.endColor)
+                                                    )
+                                                )
+                                                .border(
+                                                    width = if (isSelected) 2.5.dp else 1.dp,
+                                                    color = if (isSelected) Color.White else tokens.panelBorder,
+                                                    shape = CircleShape
+                                                )
+                                                .clickable {
+                                                    onUpdateSettings { s -> s.copy(accent = accentOption) }
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (isSelected) {
+                                                LineIcon(
+                                                    type = LineIconType.CHECK,
+                                                    tint = Color.White,
+                                                    size = 15.dp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
                                 // Font select + Import Font from Google Drive / Files
                                 val currentFontLabel = if (settings.font == FontOption.CUSTOM && settings.customFontName.isNotBlank()) {
                                     settings.customFontName.take(18)
@@ -1027,12 +1069,43 @@ fun SettingsScreen(
                         )
                     }
 
+                    val normalizedTag = GitHubSyncHelper.sanitizeGitTag(publishTagInput, "v1.1.8")
+
                     Text(
-                        text = "Target: ${GitHubSyncHelper.OFFICIAL_REPO_SLUG}/releases • Uploads app-release.apk + SHA-256",
+                        text = "Target: ${GitHubSyncHelper.OFFICIAL_REPO_SLUG}/releases • Valid Tag: $normalizedTag",
                         style = MaterialTheme.typography.labelSmall,
                         color = tokens.accentStart,
                         fontWeight = FontWeight.SemiBold
                     )
+
+                    // Quick Valid Tag Presets to avoid any invalid tag error
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf("v1.1.8", "v1.1.9", "v1.2.0").forEach { presetTag ->
+                            val isSelectedTag = normalizedTag.equals(presetTag, ignoreCase = true)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(
+                                        if (isSelectedTag) tokens.accentBrush
+                                        else SolidColor(tokens.fieldFill)
+                                    )
+                                    .border(1.dp, tokens.panelBorder, RoundedCornerShape(50))
+                                    .clickable { publishTagInput = presetTag }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = presetTag,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isSelectedTag) Color.White else tokens.textPrimary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
 
                     // Tag Name Input
                     Box(
@@ -1064,7 +1137,7 @@ fun SettingsScreen(
                     ) {
                         if (publishTokenInput.isEmpty()) {
                             Text(
-                                text = "GitHub Token (ghp_...) to upload APK release",
+                                text = "GitHub Token (ghp_...) to auto-create tag & upload APK",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = tokens.textSecondary
                             )
@@ -1111,18 +1184,18 @@ fun SettingsScreen(
                     }
 
                     GlassActionPill(
-                        label = if (isPublishingRelease) "Uploading APK to GitHub Releases..." else "Publish Release & Upload APK",
+                        label = if (isPublishingRelease) "Creating Tag $normalizedTag & Uploading APK..." else "Create Tag $normalizedTag & Upload APK",
                         icon = LineIconType.CLOUD_UPLOAD,
                         primary = true,
                         onClick = {
                             if (isPublishingRelease) return@GlassActionPill
                             scope.launch {
                                 isPublishingRelease = true
-                                publishStatusMessage = "Starting GitHub Release upload..."
+                                publishStatusMessage = "Creating valid tag $normalizedTag & preparing release..."
                                 val res = GitHubSyncHelper.createAndUploadGitHubRelease(
                                     context = context,
                                     token = publishTokenInput,
-                                    tagNameInput = publishTagInput,
+                                    tagNameInput = normalizedTag,
                                     releaseNotesInput = publishNotesInput,
                                     onStatus = { st -> publishStatusMessage = st }
                                 )
@@ -1140,12 +1213,16 @@ fun SettingsScreen(
                     )
 
                     GlassActionPill(
-                        label = "Open GitHub 'New Release' Web Page",
+                        label = "Open GitHub Web (Pre-filled Tag $normalizedTag)",
                         icon = LineIconType.SHARE,
                         onClick = {
+                            val prefilledUrl = GitHubSyncHelper.buildNewReleaseWebUrl(
+                                tagNameInput = normalizedTag,
+                                releaseNotesInput = publishNotesInput
+                            )
                             GitHubSyncHelper.openOfficialGitHubRepository(
                                 context = context,
-                                url = "${GitHubSyncHelper.OFFICIAL_REPO_URL}/releases/new"
+                                url = prefilledUrl
                             )
                         },
                         modifier = Modifier.fillMaxWidth()

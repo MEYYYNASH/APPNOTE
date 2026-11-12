@@ -6,6 +6,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.util.Base64
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -598,6 +599,181 @@ object GitHubSyncHelper {
     }
 
     /**
+     * Strictly normalizes any user input into a valid Git tag (e.g. "v1.1.8").
+     * Prevents GitHub's "Make sure you have a valid tag" error.
+     */
+    fun sanitizeGitTag(rawInput: String, fallback: String = "v1.1.8"): String {
+        val trimmed = rawInput.trim()
+        if (trimmed.isEmpty()) return fallback
+        val cleaned = trimmed
+            .replace(Regex("\\s+"), "")
+            .replace(Regex("[^a-zA-Z0-9._-]"), "")
+            .trim('.', '-', '_')
+        if (cleaned.isEmpty()) return fallback
+        val withPrefix = if (cleaned.startsWith("v") || cleaned.startsWith("V")) {
+            "v" + cleaned.substring(1)
+        } else {
+            "v$cleaned"
+        }
+        return if (withPrefix == "v") fallback else withPrefix
+    }
+
+    /**
+     * Builds a pre-filled GitHub New Release web URL (`?tag=v1.1.8&title=...&body=...`)
+     * so GitHub Web automatically populates a valid tag and never fails with "Make sure you have a valid tag".
+     */
+    fun buildNewReleaseWebUrl(tagNameInput: String, releaseNotesInput: String): String {
+        val validTag = sanitizeGitTag(tagNameInput, "v1.1.8")
+        val title = "APPNOTE $validTag"
+        val body = if (releaseNotesInput.isNotBlank()) {
+            releaseNotesInput.trim()
+        } else {
+            "Official APPNOTE $validTag signed APK release."
+        }
+        return Uri.parse("$OFFICIAL_REPO_URL/releases/new")
+            .buildUpon()
+            .appendQueryParameter("tag", validTag)
+            .appendQueryParameter("title", title)
+            .appendQueryParameter("body", body)
+            .build()
+            .toString()
+    }
+
+    /**
+     * Ensures the repository on GitHub has at least one commit on its default branch
+     * (auto-initializing with README.md if the repository is completely empty) and creates
+     * the Git tag reference `refs/tags/<tagName>` so GitHub always has a valid tag.
+     */
+    private fun ensureRepositoryCommitAndTag(
+        token: String,
+        tagName: String,
+        onStatus: (String) -> Unit
+    ): String {
+        var defaultBranch = "main"
+        try {
+            val repoConn = (URL("https://api.github.com/repos/$OFFICIAL_REPO_SLUG").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 12000
+                readTimeout = 12000
+                setRequestProperty("Accept", "application/vnd.github+json")
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+            }
+            if (repoConn.responseCode in 200..299) {
+                val repoJson = JSONObject(repoConn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+                defaultBranch = repoJson.optString("default_branch", "main").ifBlank { "main" }
+            }
+            repoConn.disconnect()
+        } catch (_: Exception) {
+        }
+
+        // Check if defaultBranch has a HEAD commit
+        var headSha = fetchBranchHeadSha(token, defaultBranch)
+        if (headSha.isBlank() && defaultBranch != "master") {
+            val masterSha = fetchBranchHeadSha(token, "master")
+            if (masterSha.isNotBlank()) {
+                defaultBranch = "master"
+                headSha = masterSha
+            }
+        }
+
+        // If repository has 0 commits (empty repo), GitHub rejects any tag/release with "Make sure you have a valid tag".
+        // Initialize the repo by committing README.md via the Contents API.
+        if (headSha.isBlank()) {
+            onStatus("Initializing empty GitHub repository with initial commit on $defaultBranch...")
+            try {
+                val readmeContent = "# APPNOTE\n\nOfficial repository for APPNOTE Android releases.\n"
+                val readmeBase64 = Base64.encodeToString(readmeContent.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                val initPayload = JSONObject().apply {
+                    put("message", "Initial commit for APPNOTE releases")
+                    put("content", readmeBase64)
+                    put("branch", defaultBranch)
+                }
+                val initConn = (URL("https://api.github.com/repos/$OFFICIAL_REPO_SLUG/contents/README.md").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PUT"
+                    doOutput = true
+                    connectTimeout = 15000
+                    readTimeout = 15000
+                    setRequestProperty("Accept", "application/vnd.github+json")
+                    setRequestProperty("Authorization", "Bearer $token")
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                    setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+                }
+                initConn.outputStream.use { out ->
+                    out.write(initPayload.toString().toByteArray(Charsets.UTF_8))
+                    out.flush()
+                }
+                if (initConn.responseCode in 200..299) {
+                    val initResp = JSONObject(initConn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+                    headSha = initResp.optJSONObject("commit")?.optString("sha", "").orEmpty()
+                }
+                initConn.disconnect()
+            } catch (_: Exception) {
+            }
+            if (headSha.isBlank()) {
+                headSha = fetchBranchHeadSha(token, defaultBranch)
+            }
+        }
+
+        // Explicitly create `refs/tags/<tagName>` pointing to `headSha` if we have a valid commit SHA
+        if (headSha.isNotBlank()) {
+            onStatus("Creating Git tag $tagName on commit ${headSha.take(7)}...")
+            try {
+                val tagRefPayload = JSONObject().apply {
+                    put("ref", "refs/tags/$tagName")
+                    put("sha", headSha)
+                }
+                val refConn = (URL("https://api.github.com/repos/$OFFICIAL_REPO_SLUG/git/refs").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    doOutput = true
+                    connectTimeout = 12000
+                    readTimeout = 12000
+                    setRequestProperty("Accept", "application/vnd.github+json")
+                    setRequestProperty("Authorization", "Bearer $token")
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                    setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+                }
+                refConn.outputStream.use { out ->
+                    out.write(tagRefPayload.toString().toByteArray(Charsets.UTF_8))
+                    out.flush()
+                }
+                refConn.responseCode
+                refConn.disconnect()
+            } catch (_: Exception) {
+            }
+        }
+
+        return defaultBranch
+    }
+
+    private fun fetchBranchHeadSha(token: String, branch: String): String {
+        return try {
+            val refConn = (URL("https://api.github.com/repos/$OFFICIAL_REPO_SLUG/git/ref/heads/$branch").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10000
+                readTimeout = 10000
+                setRequestProperty("Accept", "application/vnd.github+json")
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+            }
+            val sha = if (refConn.responseCode in 200..299) {
+                val json = JSONObject(refConn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
+                json.optJSONObject("object")?.optString("sha", "").orEmpty()
+            } else {
+                ""
+            }
+            refConn.disconnect()
+            sha
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
+    /**
      * Publishes a new GitHub Release directly to `MEY-NASHH/APPNOTE/releases` using the GitHub Releases REST API
      * and uploads the signed `app-release.apk`, `app-release.apk.sha256`, and `release-metadata.json` as release assets.
      */
@@ -621,8 +797,7 @@ object GitHubSyncHelper {
             )
         }
 
-        val rawTag = tagNameInput.trim().ifBlank { "v1.1.0" }
-        val tagName = if (rawTag.startsWith("v") || rawTag.startsWith("V")) rawTag else "v$rawTag"
+        val tagName = sanitizeGitTag(tagNameInput, "v1.1.8")
         val cleanVersion = tagName.removePrefix("v").removePrefix("V")
         val remoteVersionCode = deriveVersionCodeFromTag(tagName).coerceAtLeast(installed.versionCode + 1L)
 
@@ -652,9 +827,13 @@ object GitHubSyncHelper {
                 appendLine("- **SHA-256:** `$apkSha256`")
             }
 
+            // Ensure repo has at least one commit and create the Git tag ref `refs/tags/<tagName>`
+            val targetBranch = ensureRepositoryCommitAndTag(cleanToken, tagName, onStatus)
+
             onStatus("Creating GitHub Release $tagName on $OFFICIAL_REPO_SLUG...")
             val createPayload = JSONObject().apply {
                 put("tag_name", tagName)
+                put("target_commitish", targetBranch)
                 put("name", "APPNOTE $tagName")
                 put("body", releaseBody)
                 put("draft", false)
@@ -687,18 +866,35 @@ object GitHubSyncHelper {
                     ""
                 }
                 createConn.disconnect()
-                val errMsg = try {
-                    JSONObject(errBody).optString("message", "HTTP $createCode")
-                } catch (_: Exception) {
-                    "HTTP $createCode"
+
+                // If release for this tag already exists (422), fetch the existing release by tag
+                val existingByTag = fetchReleaseByTag(cleanToken, tagName)
+                if (existingByTag != null) {
+                    existingByTag
+                } else {
+                    val errMsg = try {
+                        val errObj = JSONObject(errBody)
+                        val baseMsg = errObj.optString("message", "HTTP $createCode")
+                        val errorsArr = errObj.optJSONArray("errors")
+                        if (errorsArr != null && errorsArr.length() > 0) {
+                            val firstErr = errorsArr.optJSONObject(0)
+                            val codeStr = firstErr?.optString("code", "").orEmpty()
+                            val fieldStr = firstErr?.optString("field", "").orEmpty()
+                            "$baseMsg ($fieldStr $codeStr)".trim()
+                        } else {
+                            baseMsg
+                        }
+                    } catch (_: Exception) {
+                        "HTTP $createCode"
+                    }
+                    return@withContext GitHubReleaseInfo(
+                        state = UpdateState.FAILED,
+                        statusMessage = UpdateState.FAILED.statusTextEn,
+                        installedVersionName = installed.versionName,
+                        installedVersionCode = installed.versionCode,
+                        errorDetail = "GitHub Release creation failed ($createCode): $errMsg"
+                    )
                 }
-                return@withContext GitHubReleaseInfo(
-                    state = UpdateState.FAILED,
-                    statusMessage = UpdateState.FAILED.statusTextEn,
-                    installedVersionName = installed.versionName,
-                    installedVersionCode = installed.versionCode,
-                    errorDetail = "GitHub Release creation failed ($createCode): $errMsg"
-                )
             }
             createConn.disconnect()
 
@@ -758,6 +954,29 @@ object GitHubSyncHelper {
                 installedVersionCode = installed.versionCode,
                 errorDetail = e.localizedMessage ?: "Failed to publish GitHub Release"
             )
+        }
+    }
+
+    private fun fetchReleaseByTag(token: String, tagName: String): String? {
+        return try {
+            val conn = (URL("$RELEASES_API_URL/tags/$tagName").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10000
+                readTimeout = 10000
+                setRequestProperty("Accept", "application/vnd.github+json")
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+            }
+            val res = if (conn.responseCode in 200..299) {
+                conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            } else {
+                null
+            }
+            conn.disconnect()
+            res
+        } catch (_: Exception) {
+            null
         }
     }
 

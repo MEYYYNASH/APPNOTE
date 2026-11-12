@@ -304,18 +304,18 @@ fun NoteEditorPane(
                         )
                     }
 
-                    // 5 Color Dots
+                    // 6 Color Dots (Blue, Green, Amber, Violet, Pink, Slate)
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        modifier = Modifier.padding(horizontal = 2.dp)
                     ) {
                         NoteColor.entries.forEach { c ->
                             val isSelected = note.color == c
                             Box(
                                 modifier = Modifier
                                     .testTag("editor_color_dot_${c.id}")
-                                    .size(30.dp)
+                                    .size(26.dp)
                                     .clip(CircleShape)
                                     .then(
                                         if (isSelected) {
@@ -331,7 +331,7 @@ fun NoteEditorPane(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(22.dp)
+                                        .size(18.dp)
                                         .clip(CircleShape)
                                         .background(c.dotColor)
                                 )
