@@ -209,7 +209,136 @@ fun GlassOuterPane(
 }
 
 /**
- * Card / Modal container using exact `--card` (or `--glass` when elevated) and `--edge`:
+ * Clean Vector Frosted Glass Logo Icon (zero raster JPG dark borders).
+ * Adapts to Light/Dark theme and the user's selected Accent gradient.
+ */
+@Composable
+fun AppGlassLogo(
+    modifier: Modifier = Modifier,
+    sizeDp: Dp = 42.dp,
+    cornerRadius: Dp = 14.dp
+) {
+    val tokens = LocalGlassTokens.current
+    val shape = RoundedCornerShape(cornerRadius)
+
+    Box(
+        modifier = modifier
+            .size(sizeDp)
+            .drawBehind {
+                drawRoundRect(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            tokens.accentStart.copy(alpha = 0.35f),
+                            tokens.accentEnd.copy(alpha = 0.25f)
+                        )
+                    ),
+                    cornerRadius = CornerRadius(cornerRadius.toPx(), cornerRadius.toPx()),
+                    topLeft = Offset(0f, 3.dp.toPx()),
+                    size = size
+                )
+            }
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        tokens.accentStart.copy(alpha = if (tokens.isDark) 0.38f else 0.26f),
+                        tokens.accentEnd.copy(alpha = if (tokens.isDark) 0.28f else 0.20f)
+                    ),
+                    start = Offset.Zero,
+                    end = Offset(160f, 160f)
+                )
+            )
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = if (tokens.isDark) 0.18f else 0.65f),
+                        Color.White.copy(alpha = if (tokens.isDark) 0.04f else 0.25f)
+                    ),
+                    start = Offset.Zero,
+                    end = Offset(0f, 140f)
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = if (tokens.isDark) 0.45f else 0.90f),
+                        tokens.panelBorder
+                    )
+                ),
+                shape = shape
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val stroke = (w * 0.055f).coerceAtLeast(3.2f)
+
+            // Subtle inner glass note card outline
+            val cardLeft = w * 0.24f
+            val cardTop = h * 0.20f
+            val cardW = w * 0.52f
+            val cardH = h * 0.60f
+            val cardRadius = CornerRadius(w * 0.13f, w * 0.13f)
+
+            drawRoundRect(
+                color = if (tokens.isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.55f),
+                topLeft = Offset(cardLeft, cardTop),
+                size = androidx.compose.ui.geometry.Size(cardW, cardH),
+                cornerRadius = cardRadius
+            )
+            drawRoundRect(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        if (tokens.isDark) Color.White.copy(alpha = 0.92f) else tokens.accentStart,
+                        if (tokens.isDark) tokens.accentStart else tokens.accentEnd
+                    )
+                ),
+                topLeft = Offset(cardLeft, cardTop),
+                size = androidx.compose.ui.geometry.Size(cardW, cardH),
+                cornerRadius = cardRadius,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+            )
+
+            // 3 clean rounded note lines inside the glass note card
+            val lineColorPrimary = if (tokens.isDark) Color.White else tokens.accentStart
+            val lineColorSecondary = if (tokens.isDark) Color.White.copy(alpha = 0.78f) else tokens.accentEnd
+
+            drawLine(
+                color = lineColorPrimary,
+                start = Offset(w * 0.34f, h * 0.37f),
+                end = Offset(w * 0.66f, h * 0.37f),
+                strokeWidth = stroke,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            drawLine(
+                color = lineColorSecondary,
+                start = Offset(w * 0.34f, h * 0.50f),
+                end = Offset(w * 0.62f, h * 0.50f),
+                strokeWidth = stroke,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            drawLine(
+                color = lineColorSecondary.copy(alpha = 0.65f),
+                start = Offset(w * 0.34f, h * 0.63f),
+                end = Offset(w * 0.52f, h * 0.63f),
+                strokeWidth = stroke,
+                cap = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+
+            // Luminous accent dot in bottom-right of the note
+            drawCircle(
+                brush = tokens.accentBrush,
+                radius = stroke * 0.72f,
+                center = Offset(w * 0.64f, h * 0.63f)
+            )
+        }
+    }
+}
+
+/**
+ * Card / Modal container using exact `--card` (or frosted elevated glass when `elevated = true`) and `--edge`:
  * Light `--card`: rgba(255,255,255,.55)
  * Dark `--card`: rgba(255,255,255,.06)
  * Light `--edge`: rgba(255,255,255,.75)
@@ -225,13 +354,27 @@ fun GlassPanel(
 ) {
     val tokens = LocalGlassTokens.current
     val shape = RoundedCornerShape(cornerRadius)
-    val fill = if (elevated) tokens.paneFill else tokens.panelFill
+    val fill = if (elevated) tokens.panelElevatedFill else tokens.panelFill
     val edge = borderColor ?: tokens.panelBorder
 
     Box(
         modifier = modifier
             .clip(shape)
             .background(fill)
+            .then(
+                if (elevated) {
+                    Modifier.background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                if (tokens.isDark) Color.White.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.55f),
+                                if (tokens.isDark) tokens.accentStart.copy(alpha = 0.06f) else tokens.accentStart.copy(alpha = 0.04f)
+                            )
+                        )
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .border(width = 1.dp, color = edge, shape = shape),
         content = content
     )

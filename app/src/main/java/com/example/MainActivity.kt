@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.example.model.LanguageOption
 import com.example.model.ThemeOption
 import com.example.model.Translations
+import com.example.ui.components.AppGlassLogo
 import com.example.ui.components.DynamicIslandSavePill
 import com.example.ui.components.GlassBackground
 import com.example.ui.components.UndoToastBar
@@ -398,13 +399,9 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.clean_glass_notes_logo_1794447214501),
-                            contentDescription = "App Update Icon",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                        AppGlassLogo(
+                            sizeDp = 28.dp,
+                            cornerRadius = 8.dp
                         )
                         Column {
                             Text(

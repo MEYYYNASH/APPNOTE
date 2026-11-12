@@ -806,7 +806,6 @@ fun HistoryDialog(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteContextBottomSheet(
     note: Note,
@@ -819,107 +818,140 @@ fun NoteContextBottomSheet(
     onDelete: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
+    Dialog(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = tokens.panelElevatedFill,
-        contentColor = tokens.textPrimary,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        modifier = Modifier.testTag("note_context_bottom_sheet")
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                )
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Text(
-                text = note.title.ifBlank { strings.untitledNote },
-                style = MaterialTheme.typography.titleMedium,
-                color = tokens.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            // 5 Color Dots
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            GlassPanel(
+                elevated = true,
+                cornerRadius = 28.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    )
+                    .testTag("note_context_bottom_sheet")
             ) {
-                NoteColor.entries.forEach { colorOption ->
-                    val isSelected = note.color == colorOption
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Frosted Glass Drag Handle Pill
                     Box(
                         modifier = Modifier
-                            .testTag("sheet_color_${colorOption.id}")
-                            .size(48.dp)
+                            .align(Alignment.CenterHorizontally)
+                            .width(42.dp)
+                            .height(4.5.dp)
                             .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(colorOption.startColor, colorOption.endColor)
-                                )
-                            )
-                            .border(
-                                width = if (isSelected) 3.dp else 1.dp,
-                                color = if (isSelected) Color.White else tokens.panelBorder,
-                                shape = CircleShape
-                            )
-                            .clickable {
-                                onSelectColor(colorOption)
-                                onDismiss()
-                            },
-                        contentAlignment = Alignment.Center
+                            .background(tokens.textSecondary.copy(alpha = 0.45f))
+                    )
+
+                    Text(
+                        text = note.title.ifBlank { strings.untitledNote },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = tokens.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // 5 Color Dots
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isSelected) {
-                            LineIcon(type = LineIconType.CHECK, tint = Color.White, size = 18.dp)
+                        NoteColor.entries.forEach { colorOption ->
+                            val isSelected = note.color == colorOption
+                            Box(
+                                modifier = Modifier
+                                    .testTag("sheet_color_${colorOption.id}")
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(colorOption.startColor, colorOption.endColor)
+                                        )
+                                    )
+                                    .border(
+                                        width = if (isSelected) 3.dp else 1.dp,
+                                        color = if (isSelected) Color.White else tokens.panelBorder,
+                                        shape = CircleShape
+                                    )
+                                    .clickable {
+                                        onSelectColor(colorOption)
+                                        onDismiss()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isSelected) {
+                                    LineIcon(type = LineIconType.CHECK, tint = Color.White, size = 18.dp)
+                                }
+                            }
                         }
+                    }
+
+                    // Action Rows
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SheetActionItem(
+                            icon = LineIconType.PIN,
+                            label = if (note.isPinned) strings.unpinBtn else strings.pinBtn,
+                            testTag = "sheet_action_pin",
+                            onClick = {
+                                onTogglePin()
+                                onDismiss()
+                            }
+                        )
+                        SheetActionItem(
+                            icon = LineIconType.DUPLICATE,
+                            label = strings.duplicateBtn,
+                            testTag = "sheet_action_duplicate",
+                            onClick = {
+                                onDuplicate()
+                                onDismiss()
+                            }
+                        )
+                        SheetActionItem(
+                            icon = if (note.isArchived) LineIconType.RESTORE else LineIconType.ARCHIVE,
+                            label = if (note.isArchived) strings.unarchiveBtn else strings.archiveBtn,
+                            testTag = "sheet_action_archive",
+                            onClick = {
+                                onToggleArchive()
+                                onDismiss()
+                            }
+                        )
+                        SheetActionItem(
+                            icon = LineIconType.TRASH,
+                            label = strings.deleteBtn,
+                            tint = Color(0xFFEF4444),
+                            testTag = "sheet_action_delete",
+                            onClick = {
+                                onDelete()
+                                onDismiss()
+                            }
+                        )
                     }
                 }
             }
-
-            // Action Rows
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SheetActionItem(
-                    icon = LineIconType.PIN,
-                    label = if (note.isPinned) strings.unpinBtn else strings.pinBtn,
-                    testTag = "sheet_action_pin",
-                    onClick = {
-                        onTogglePin()
-                        onDismiss()
-                    }
-                )
-                SheetActionItem(
-                    icon = LineIconType.DUPLICATE,
-                    label = strings.duplicateBtn,
-                    testTag = "sheet_action_duplicate",
-                    onClick = {
-                        onDuplicate()
-                        onDismiss()
-                    }
-                )
-                SheetActionItem(
-                    icon = if (note.isArchived) LineIconType.RESTORE else LineIconType.ARCHIVE,
-                    label = if (note.isArchived) strings.unarchiveBtn else strings.archiveBtn,
-                    testTag = "sheet_action_archive",
-                    onClick = {
-                        onToggleArchive()
-                        onDismiss()
-                    }
-                )
-                SheetActionItem(
-                    icon = LineIconType.TRASH,
-                    label = strings.deleteBtn,
-                    tint = Color(0xFFEF4444),
-                    testTag = "sheet_action_delete",
-                    onClick = {
-                        onDelete()
-                        onDismiss()
-                    }
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

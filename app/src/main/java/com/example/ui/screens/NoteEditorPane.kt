@@ -78,6 +78,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -271,8 +272,18 @@ fun NoteEditorPane(
             label = "checklist_progress"
         )
 
+        val isEditorDialogOpen = pendingCrop != null ||
+            showReminderDialog ||
+            showVoiceDialog ||
+            showDrawDialog ||
+            showHistoryDialog
+
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .blur(if (isEditorDialogOpen) 26.dp else 0.dp)
+            ) {
                 // Full-screen Top Bar: Back, 5 color dots, spacer, Pin, Reminder (Bell), Checklist, Copy, Share, Delete
                 // Every icon is 100% distinct and has a single unique function!
                 Row(

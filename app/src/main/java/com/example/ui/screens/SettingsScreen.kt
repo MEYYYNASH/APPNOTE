@@ -74,6 +74,9 @@ import com.example.model.LanguageOption
 import com.example.model.NoteColor
 import com.example.model.NoteType
 import com.example.model.ThemeOption
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.window.Dialog
+import com.example.ui.components.AppGlassLogo
 import com.example.ui.components.GlassActionPill
 import com.example.ui.components.GlassIconButton
 import com.example.ui.components.GlassOuterPane
@@ -81,7 +84,6 @@ import com.example.ui.components.GlassPanel
 import com.example.ui.icons.LineIcon
 import com.example.ui.icons.LineIconType
 import com.example.ui.theme.LocalGlassTokens
-import androidx.compose.ui.window.Dialog
 import com.example.util.GitHubReleaseInfo
 import com.example.util.GitHubSyncHelper
 import com.example.util.UpdateState
@@ -183,10 +185,11 @@ fun SettingsScreen(
         cornerRadius = 24.dp,
         modifier = modifier
             .fillMaxSize()
+            .blur(if (showReleaseNotesDialog) 26.dp else 0.dp)
             .testTag("settings_full_screen")
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header with Back button, Clean Logo Icon, and "Settings" title
+            // Header with Back button, Clean Vector Glass Logo, and "Settings" title
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -201,14 +204,9 @@ fun SettingsScreen(
                     onClick = onBack,
                     testTagName = "settings_back_button"
                 )
-                Image(
-                    painter = painterResource(id = R.drawable.clean_glass_notes_logo_1794447214501),
-                    contentDescription = "App Logo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .border(1.dp, tokens.panelBorder, RoundedCornerShape(10.dp))
+                AppGlassLogo(
+                    sizeDp = 34.dp,
+                    cornerRadius = 10.dp
                 )
                 Text(
                     text = strings.settingsTitle,
@@ -251,14 +249,9 @@ fun SettingsScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.clean_glass_notes_logo_1794447214501),
-                                        contentDescription = "APPNOTE Logo",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(52.dp)
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .border(1.dp, tokens.panelBorder, RoundedCornerShape(16.dp))
+                                    AppGlassLogo(
+                                        sizeDp = 52.dp,
+                                        cornerRadius = 16.dp
                                     )
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
@@ -889,6 +882,7 @@ fun SettingsScreen(
     if (showReleaseNotesDialog) {
         Dialog(onDismissRequest = { showReleaseNotesDialog = false }) {
             GlassPanel(
+                elevated = true,
                 cornerRadius = 24.dp,
                 modifier = Modifier
                     .fillMaxWidth()

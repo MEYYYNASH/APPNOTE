@@ -73,7 +73,11 @@ fun GlassNotesTheme(
         bgEnd = if (isDark) DarkBgEnd else LightBgEnd,
         paneFill = if (isDark) DarkGlassPane else LightGlassPane,
         panelFill = if (isDark) DarkGlassCard else LightGlassCard,
-        panelElevatedFill = if (isDark) DarkGlassPane else LightGlassPane,
+        panelElevatedFill = if (isDark) {
+            Color(red = 18f / 255f, green = 28f / 255f, blue = 50f / 255f, alpha = 0.88f)
+        } else {
+            Color(red = 246f / 255f, green = 250f / 255f, blue = 1f, alpha = 0.90f)
+        },
         fieldFill = if (isDark) DarkGlassField else LightGlassField,
         panelBorder = if (isDark) DarkGlassBorder else LightGlassBorder,
         textPrimary = if (isDark) DarkTextPrimary else LightTextPrimary,

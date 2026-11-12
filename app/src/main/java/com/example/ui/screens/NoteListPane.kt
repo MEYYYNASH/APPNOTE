@@ -68,15 +68,13 @@ import com.example.model.NoteColor
 import com.example.model.SearchFilters
 import com.example.model.Translations
 import com.example.model.TypeFilter
+import com.example.ui.components.AppGlassLogo
 import com.example.ui.components.BottomDockSection
 import com.example.ui.components.FloatingCapsuleBottomDock
 import com.example.ui.components.GlassIconButton
 import com.example.ui.components.NoteContextBottomSheet
 import com.example.ui.components.QuickCaptureDialog
 import com.example.ui.components.formatNoteTime
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import com.example.R
 import com.example.ui.icons.LineIcon
 import com.example.ui.icons.LineIconType
 import com.example.ui.theme.LocalGlassTokens
@@ -141,28 +139,28 @@ fun NoteListPane(
         FilterTab.ARCHIVE, FilterTab.TRASH -> BottomDockSection.VAULT
     }
 
+    val isOverlayOpen = showQuickCaptureDialog || contextSheetNote != null
+
     Box(modifier = modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Full-Screen Header: Title on left, Quick Capture (Bolt) + Theme Switch (Sun/Moon) on right
-            // Zero duplicate Settings or FAB buttons!
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Clean Glass Notes Logo Icon
-                Image(
-                    painter = painterResource(id = R.drawable.clean_glass_notes_logo_1794447214501),
-                    contentDescription = "Notes Logo",
-                    contentScale = ContentScale.Crop,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(if (isOverlayOpen) 26.dp else 0.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Full-Screen Header: Clean Vector Glass Logo + Title on left, Quick Capture (Bolt) + Theme Switch (Sun/Moon) on right
+                Row(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .border(1.dp, tokens.panelBorder, RoundedCornerShape(14.dp))
-                        .testTag("app_clean_logo_icon")
-                )
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AppGlassLogo(
+                        sizeDp = 42.dp,
+                        cornerRadius = 14.dp,
+                        modifier = Modifier.testTag("app_clean_logo_icon")
+                    )
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -487,26 +485,29 @@ fun NoteListPane(
             }
         }
 
-        // Sleek Floating Capsule Bottom Navigation Bar + Separate Circular "+" Action Button
-        // Matching the user's attached reference images!
-        FloatingCapsuleBottomDock(
-            activeSection = activeDockSection,
-            homeLabel = if (language == LanguageOption.KHMER) "ទំព័រដើម" else "Home",
-            checklistsLabel = strings.tabChecklists,
-            vaultLabel = strings.tabArchive,
-            settingsLabel = strings.settingsTitle,
-            newNoteLabel = strings.newNote,
-            onSelectSection = { section ->
-                when (section) {
-                    BottomDockSection.HOME -> onSelectTab(FilterTab.ALL)
-                    BottomDockSection.CHECKLISTS -> onSelectTab(FilterTab.CHECKLISTS)
-                    BottomDockSection.VAULT -> onSelectTab(FilterTab.ARCHIVE)
-                    BottomDockSection.SETTINGS -> onOpenSettings()
-                }
-            },
-            onNewNote = onCreateNote,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+            // Sleek Floating Capsule Bottom Navigation Bar + Separate Circular "+" Action Button
+            // Hidden when NoteContextBottomSheet is open so the dock never bleeds behind Delete!
+            FloatingCapsuleBottomDock(
+                activeSection = activeDockSection,
+                homeLabel = if (language == LanguageOption.KHMER) "ទំព័រដើម" else "Home",
+                checklistsLabel = strings.tabChecklists,
+                vaultLabel = strings.tabArchive,
+                settingsLabel = strings.settingsTitle,
+                newNoteLabel = strings.newNote,
+                onSelectSection = { section ->
+                    when (section) {
+                        BottomDockSection.HOME -> onSelectTab(FilterTab.ALL)
+                        BottomDockSection.CHECKLISTS -> onSelectTab(FilterTab.CHECKLISTS)
+                        BottomDockSection.VAULT -> onSelectTab(FilterTab.ARCHIVE)
+                        BottomDockSection.SETTINGS -> onOpenSettings()
+                    }
+                },
+                onNewNote = onCreateNote,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .alpha(if (contextSheetNote != null) 0f else 1f)
+            )
+        }
     }
 
     if (showQuickCaptureDialog) {
