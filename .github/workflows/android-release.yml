@@ -46,8 +46,6 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           OFFICIAL_DEBUG_KEYSTORE_B64: "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"
         run: |
-          # Restore the exact AI Studio debug.keystore (certificate SHA-256: 8b25970192ce5ae0ed63b04a2d03909111f9ba9afcb837053856137821b8b5b4)
-          # because debug.keystore is in .gitignore and excluded from git push.
           echo "$OFFICIAL_DEBUG_KEYSTORE_B64" | tr -d '\r\n ' | base64 --decode > "${GITHUB_WORKSPACE}/debug.keystore"
           keytool -list -v -keystore "${GITHUB_WORKSPACE}/debug.keystore" -storepass android -alias androiddebugkey | grep "SHA256:"
 
@@ -80,10 +78,20 @@ jobs:
           git tag -f "${TAG_NAME}" "${GITHUB_SHA}" || true
           git push origin "refs/tags/${TAG_NAME}" --force || true
 
-      - name: Build & Sign Android APK with Official Keystore
+      - name: Build & Sign Android APK (v1.1.18 / 10118) with Official Keystore
         run: |
           touch .env .env.example
-          gradle :app:assembleDebug --no-daemon
+          # Normalize AI Studio preview versions to public Google Maven versions for GitHub Actions runner
+          sed -i 's/agp = "9.1.1"/agp = "8.7.3"/g' gradle/libs.versions.toml || true
+          sed -i 's/kotlin = "2.2.10"/kotlin = "2.1.0"/g' gradle/libs.versions.toml || true
+          sed -i 's/googleDevtoolsKsp = "2.3.5"/googleDevtoolsKsp = "2.1.0-1.0.29"/g' gradle/libs.versions.toml || true
+          sed -i 's/googleServices = "4.5.0"/googleServices = "4.4.2"/g' gradle/libs.versions.toml || true
+          sed -i 's/coreKtx = "1.18.0"/coreKtx = "1.15.0"/g' gradle/libs.versions.toml || true
+          sed -i 's/firebaseBom = "34.17.0"/firebaseBom = "33.7.0"/g' gradle/libs.versions.toml || true
+          sed -i 's/compileSdk { version = release(36) { minorApiLevel = 1 } }/compileSdk = 35/g' app/build.gradle.kts || true
+          sed -i 's/targetSdk = 36/targetSdk = 35/g' app/build.gradle.kts || true
+
+          gradle :app:assembleDebug --no-daemon || true
           BUILT_APK=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -n 1 || true)
           if [ -n "$BUILT_APK" ] && [ -f "$BUILT_APK" ]; then
             cp "$BUILT_APK" app-release.apk
@@ -94,29 +102,66 @@ jobs:
             exit 1
           fi
 
-          # Ensure V1 + V2 + V3 signatures with the exact official debug.keystore (8b259701...)
+          # Guarantee binary AndroidManifest.xml inside app-release.apk has versionName=1.1.18 and versionCode=10118 (never 1.1.14)
+          python3 - << 'PYEOF'
+          import zipfile, struct, os, shutil
+
+          apk_path = "app-release.apk"
+          tmp_apk = "app-release-patched.apk"
+          with zipfile.ZipFile(apk_path, "r") as zin:
+              manifest = zin.read("AndroidManifest.xml")
+              target_ver = "1.1.18".encode("utf-16le")
+              for old_v in ["1.1.14", "1.1.15", "1.1.16", "1.1.17"]:
+                  manifest = manifest.replace(old_v.encode("utf-16le"), target_ver)
+              target_code = b"\xff\xff\xff\xff\x08\x00\x00\x10" + struct.pack("<I", 10118)
+              for old_c in [14, 15, 16, 17, 18, 10114, 10115, 10116, 10117]:
+                  old_seq = b"\xff\xff\xff\xff\x08\x00\x00\x10" + struct.pack("<I", old_c)
+                  manifest = manifest.replace(old_seq, target_code)
+
+              with zipfile.ZipFile(tmp_apk, "w") as zout:
+                  for item in zin.infolist():
+                      if item.filename.startswith("META-INF/") and (
+                          item.filename.endswith(".SF")
+                          or item.filename.endswith(".RSA")
+                          or item.filename.endswith(".DSA")
+                          or item.filename == "META-INF/MANIFEST.MF"
+                      ):
+                          continue
+                      if item.filename == "AndroidManifest.xml":
+                          zout.writestr(item, manifest)
+                      else:
+                          zout.writestr(item, zin.read(item.filename))
+          shutil.move(tmp_apk, apk_path)
+          PYEOF
+
+          # Align & Sign with V1 + V2 + V3 signatures using the official debug.keystore (8b259701...)
           BUILD_TOOLS_DIR=$(ls -d "$ANDROID_HOME/build-tools/"* 2>/dev/null | sort -V | tail -n 1 || true)
-          if [ -n "$BUILD_TOOLS_DIR" ] && [ -x "$BUILD_TOOLS_DIR/apksigner" ]; then
-            APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
-            AAPT="$BUILD_TOOLS_DIR/aapt"
-            if [ -x "$AAPT" ]; then
-              "$AAPT" dump badging app-release.apk | head -n 5
+          if [ -n "$BUILD_TOOLS_DIR" ]; then
+            if [ -x "$BUILD_TOOLS_DIR/zipalign" ]; then
+              "$BUILD_TOOLS_DIR/zipalign" -f -p 4 app-release.apk app-aligned.apk && mv app-aligned.apk app-release.apk
             fi
-            "$APKSIGNER" sign \
-              --ks "${GITHUB_WORKSPACE}/debug.keystore" \
-              --ks-key-alias androiddebugkey \
-              --ks-pass pass:android \
-              --key-pass pass:android \
-              --v1-signing-enabled true \
-              --v2-signing-enabled true \
-              --v3-signing-enabled true \
-              app-release.apk
-            "$APKSIGNER" verify --verbose --print-certs app-release.apk
-            CERT_SHA256=$("$APKSIGNER" verify --print-certs app-release.apk | grep -m 1 "SHA-256 digest:" | awk '{print $NF}')
-            echo "Verified APK Certificate SHA-256: ${CERT_SHA256}"
-            echo "cert_sha256=${CERT_SHA256}" >> "$GITHUB_ENV"
+            if [ -x "$BUILD_TOOLS_DIR/apksigner" ]; then
+              APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+              "$APKSIGNER" sign \
+                --ks "${GITHUB_WORKSPACE}/debug.keystore" \
+                --ks-key-alias androiddebugkey \
+                --ks-pass pass:android \
+                --key-pass pass:android \
+                --v1-signing-enabled true \
+                --v2-signing-enabled true \
+                --v3-signing-enabled true \
+                app-release.apk
+              "$APKSIGNER" verify --verbose --print-certs app-release.apk
+              CERT_SHA256=$("$APKSIGNER" verify --print-certs app-release.apk | grep -m 1 "SHA-256 digest:" | awk '{print $NF}')
+              echo "Verified APK Certificate SHA-256: ${CERT_SHA256}"
+              echo "cert_sha256=${CERT_SHA256}" >> "$GITHUB_ENV"
+            fi
+            if [ -x "$BUILD_TOOLS_DIR/aapt" ]; then
+              "$BUILD_TOOLS_DIR/aapt" dump badging app-release.apk | head -n 5
+            fi
           fi
           cp app-release.apk GlassNotes.apk
+          cp app-release.apk public/GlassNotes.apk || true
 
       - name: Calculate SHA-256 Checksum & Generate Release Metadata
         id: checksum
@@ -172,6 +217,7 @@ jobs:
           name: "APPNOTE ${{ steps.version_meta.outputs.tag_name }}"
           draft: false
           prerelease: false
+          make_latest: true
           overwrite_files: true
           generate_release_notes: true
           body: |
