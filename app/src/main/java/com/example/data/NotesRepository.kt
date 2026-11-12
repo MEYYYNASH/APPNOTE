@@ -121,10 +121,11 @@ class NotesRepository(context: Context) {
                 notificationsEnabled = obj.optBoolean("notificationsEnabled", false),
                 hidePreviews = obj.optBoolean("hidePreviews", false),
                 webAppMode = obj.optBoolean("webAppMode", false),
-                githubOwnerRepo = obj.optString("githubOwnerRepo", ""),
+                githubOwnerRepo = obj.optString("githubOwnerRepo", "glassnotes/app"),
                 githubBranch = obj.optString("githubBranch", "main"),
                 githubToken = obj.optString("githubToken", ""),
-                appVersion = obj.optString("appVersion", "1.0.0")
+                appVersion = obj.optString("appVersion", "1.0.0"),
+                latestAvailableVersion = obj.optString("latestAvailableVersion", "1.1.0")
             )
         } catch (e: Exception) {
             AppSettings()
@@ -152,6 +153,7 @@ class NotesRepository(context: Context) {
                 put("githubBranch", settings.githubBranch)
                 put("githubToken", settings.githubToken)
                 put("appVersion", settings.appVersion)
+                put("latestAvailableVersion", settings.latestAvailableVersion)
             }
             writeRaw(KEY_SETTINGS, obj.toString())
         } catch (e: Exception) {

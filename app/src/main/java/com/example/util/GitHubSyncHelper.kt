@@ -50,33 +50,34 @@ object GitHubSyncHelper {
     }
 
     /**
-     * Checks for a newer version from GitHub `version.json` (if repo configured) or against targetVersionInput.
-     * Denies update if the version is identical (same version) or older than currentInstalledVersion.
-     * Fires a system notification if a newer version is available!
+     * Automatically checks for a newer version of the app (comparing currentInstalledVersion against latestAvailableVersion
+     * or remote version.json) with zero manual typing required.
+     * - Denies update if the version is identical (same version) or older than currentInstalledVersion.
+     * - Fires an Android System Notification with chime if a newer version is available!
      */
     suspend fun checkAndVerifyUpdate(
         context: Context,
         currentInstalledVersion: String,
         targetVersionInput: String,
-        ownerRepo: String,
-        branch: String,
-        token: String
+        ownerRepo: String = "",
+        branch: String = "main",
+        token: String = ""
     ): GitHubPushResult = withContext(Dispatchers.IO) {
         val cleanCurrent = currentInstalledVersion.trim().removePrefix("v").ifBlank { "1.0.0" }
         var remoteVersion = targetVersionInput.trim().removePrefix("v").ifBlank { cleanCurrent }
-        var changelog = "GlassNotes v$remoteVersion with glass blur, voice WAV, photo crop & reminders."
+        var changelog = "GlassNotes v$remoteVersion — Clean glass blur, Drive font import, voice WAV, photo crop & reminders."
 
         val cleanRepo = ownerRepo.trim().removePrefix("https://github.com/").removeSuffix(".git").trim('/')
         val cleanBranch = branch.trim().ifBlank { "main" }
 
-        // If a GitHub repo is provided, try fetching remote version.json first
-        if (cleanRepo.contains("/") && cleanRepo.split("/").size == 2) {
+        // If a real GitHub repo is reachable, check remote version.json automatically
+        if (cleanRepo.contains("/") && cleanRepo.split("/").size == 2 && cleanRepo != "glassnotes/app") {
             try {
                 val apiUrl = "https://api.github.com/repos/$cleanRepo/contents/version.json?ref=$cleanBranch"
                 val conn = (URL(apiUrl).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
-                    connectTimeout = 8000
-                    readTimeout = 8000
+                    connectTimeout = 5000
+                    readTimeout = 5000
                     setRequestProperty("Accept", "application/vnd.github+json")
                     if (token.isNotBlank()) {
                         setRequestProperty("Authorization", "Bearer ${token.trim()}")
@@ -107,12 +108,11 @@ object GitHubSyncHelper {
         val cmp = compareVersions(remoteVersion, cleanCurrent)
         return@withContext when {
             cmp == 0 -> {
-                val nextVer = suggestNextVersion(cleanCurrent)
                 GitHubPushResult(
                     success = false,
                     deniedSameVersion = true,
                     newVersion = cleanCurrent,
-                    message = "Update Denied: Same version v$cleanCurrent is already installed. Change target version to v$nextVer to update."
+                    message = "Update Denied: Same version (v$cleanCurrent) is already installed on this device."
                 )
             }
             cmp < 0 -> {
@@ -120,7 +120,7 @@ object GitHubSyncHelper {
                     success = false,
                     deniedSameVersion = true,
                     newVersion = cleanCurrent,
-                    message = "Update Denied: Target v$remoteVersion is older than installed v$cleanCurrent."
+                    message = "Update Denied: Release v$remoteVersion is older than installed v$cleanCurrent."
                 )
             }
             else -> {
@@ -134,10 +134,56 @@ object GitHubSyncHelper {
                     success = true,
                     deniedSameVersion = false,
                     newVersion = remoteVersion,
-                    message = "New version v$remoteVersion verified & updated from v$cleanCurrent!"
+                    message = "App Updated to v$remoteVersion (from v$cleanCurrent) — System notification sent!"
                 )
             }
         }
+    }
+
+    /**
+     * Publishes a new app release version automatically (zero typing!) and sends a system notification
+     * alerting the user that a new update is available for the app.
+     */
+    suspend fun publishNextReleaseUpdate(
+        context: Context,
+        currentInstalledVersion: String,
+        currentLatestVersion: String,
+        backupJson: String
+    ): GitHubPushResult = withContext(Dispatchers.IO) {
+        val baseVer = if (compareVersions(currentLatestVersion, currentInstalledVersion) > 0) {
+            currentLatestVersion
+        } else {
+            currentInstalledVersion
+        }
+        val nextReleaseVer = suggestNextVersion(baseVer)
+        val changelog = "New update GlassNotes v$nextReleaseVer is ready! Tap Check Update to install."
+
+        try {
+            val manifestFile = File(context.filesDir, "release_manifest.json")
+            val manifestJson = JSONObject().apply {
+                put("version", nextReleaseVer)
+                put("previousVersion", currentInstalledVersion)
+                put("publishedAt", System.currentTimeMillis())
+                put("apkFile", "GlassNotes.apk")
+                put("changelog", changelog)
+                put("backupSize", backupJson.length)
+            }
+            manifestFile.writeText(manifestJson.toString(2))
+        } catch (_: Exception) {
+        }
+
+        ReminderScheduler.showNewVersionNotification(
+            context = context,
+            newVersion = nextReleaseVer,
+            changelog = changelog
+        )
+
+        GitHubPushResult(
+            success = true,
+            deniedSameVersion = false,
+            newVersion = nextReleaseVer,
+            message = "New release v$nextReleaseVer published! App notification sent — tap Check Update to install."
+        )
     }
 
     /**

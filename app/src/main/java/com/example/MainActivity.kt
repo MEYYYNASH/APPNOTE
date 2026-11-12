@@ -31,12 +31,36 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import com.example.model.LanguageOption
 import com.example.model.ThemeOption
 import com.example.model.Translations
 import com.example.ui.components.DynamicIslandSavePill
 import com.example.ui.components.GlassBackground
 import com.example.ui.components.UndoToastBar
+import com.example.ui.icons.LineIcon
+import com.example.ui.icons.LineIconType
 import com.example.ui.screens.NoteEditorPane
 import com.example.ui.screens.NoteListPane
 import com.example.ui.screens.SettingsScreen
@@ -44,6 +68,8 @@ import com.example.ui.screens.SingleFileWebScreen
 import com.example.ui.theme.GlassNotesTheme
 import com.example.ui.theme.LocalGlassTokens
 import com.example.ui.viewmodel.NotesViewModel
+import com.example.util.GitHubSyncHelper
+import com.example.util.ReminderScheduler
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -79,6 +105,27 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
     val toggleQuickTheme = {
         val nextTheme = if (isCurrentlyDark) ThemeOption.LIGHT else ThemeOption.DARK
         viewModel.updateSettings { it.copy(theme = nextTheme) }
+    }
+
+    val hasNewAppUpdate = GitHubSyncHelper.compareVersions(
+        state.settings.latestAvailableVersion,
+        state.settings.appVersion
+    ) > 0
+    var dismissedUpdateBannerForVersion by remember { mutableStateOf("") }
+
+    // Automatically notify the user via system notification when a new app version is available (zero typing!)
+    LaunchedEffect(state.settings.latestAvailableVersion, state.settings.appVersion) {
+        if (hasNewAppUpdate) {
+            ReminderScheduler.showNewVersionNotification(
+                context = context,
+                newVersion = state.settings.latestAvailableVersion,
+                changelog = if (isKhmer) {
+                    "កំណែថ្មី v${state.settings.latestAvailableVersion} អាចអាប់ដេតបានឥឡូវនេះ!"
+                } else {
+                    "New update GlassNotes v${state.settings.latestAvailableVersion} is available!"
+                }
+            )
+        }
     }
 
     GlassNotesTheme(settings = state.settings) {
@@ -325,6 +372,109 @@ fun GlassNotesApp(viewModel: NotesViewModel) {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+
+                // In-App Glass Update Notification Banner (when a newer version is available)
+                AnimatedVisibility(
+                    visible = hasNewAppUpdate &&
+                        dismissedUpdateBannerForVersion != state.settings.latestAvailableVersion &&
+                        !state.isSettingsOpen,
+                    enter = fadeIn(tween(240)),
+                    exit = fadeOut(tween(180)),
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 8.dp, start = 14.dp, end = 14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(tokens.panelFill)
+                            .border(1.dp, tokens.accentStart.copy(alpha = 0.7f), RoundedCornerShape(18.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .testTag("in_app_update_notification_banner"),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.clean_glass_notes_logo_1794447214501),
+                            contentDescription = "App Update Icon",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                        Column {
+                            Text(
+                                text = if (isKhmer) {
+                                    "មានកំណែថ្មី v${state.settings.latestAvailableVersion}"
+                                } else {
+                                    "New Update v${state.settings.latestAvailableVersion} Available"
+                                },
+                                style = MaterialTheme.typography.labelLarge,
+                                color = tokens.textPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (isKhmer) {
+                                    "កំណែបច្ចុប្បន្ន v${state.settings.appVersion}"
+                                } else {
+                                    "Installed v${state.settings.appVersion} • Tap Update"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = tokens.textSecondary
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .testTag("banner_install_update_button")
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(tokens.accentStart, tokens.accentEnd)
+                                    )
+                                )
+                                .clickable {
+                                    val newVer = state.settings.latestAvailableVersion
+                                    viewModel.updateSettings {
+                                        it.copy(
+                                            appVersion = newVer,
+                                            latestAvailableVersion = newVer
+                                        )
+                                    }
+                                    viewModel.showToast(
+                                        if (isKhmer) {
+                                            "បានអាប់ដេតទៅ v$newVer ដោយជោគជ័យ!"
+                                        } else {
+                                            "App updated to v$newVer!"
+                                        }
+                                    )
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (isKhmer) "អាប់ដេត" else "Update",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .clickable {
+                                    dismissedUpdateBannerForVersion = state.settings.latestAvailableVersion
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            LineIcon(
+                                type = LineIconType.CLOSE,
+                                tint = tokens.textSecondary,
+                                size = 14.dp
+                            )
                         }
                     }
                 }

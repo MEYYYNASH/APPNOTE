@@ -111,11 +111,7 @@ fun SettingsScreen(
     var showRestoreBox by remember { mutableStateOf(false) }
     var restoreJsonText by remember { mutableStateOf("") }
 
-    // Version Check & GitHub Push state
-    var targetVersionInput by remember(settings.appVersion) { mutableStateOf(settings.appVersion) }
-    var repoInput by remember(settings.githubOwnerRepo) { mutableStateOf(settings.githubOwnerRepo) }
-    var branchInput by remember(settings.githubBranch) { mutableStateOf(settings.githubBranch.ifBlank { "main" }) }
-    var tokenInput by remember(settings.githubToken) { mutableStateOf(settings.githubToken) }
+    // Zero-typing App Version Check & Notification state
     var updateStatusText by remember { mutableStateOf("") }
     var updateDeniedError by remember { mutableStateOf(false) }
     var isSyncingGitHub by remember { mutableStateOf(false) }
@@ -167,6 +163,10 @@ fun SettingsScreen(
     }
 
     val isKm = settings.language == LanguageOption.KHMER
+    val hasNewUpdateAvailable = GitHubSyncHelper.compareVersions(
+        settings.latestAvailableVersion,
+        settings.appVersion
+    ) > 0
 
     GlassOuterPane(
         cornerRadius = 24.dp,
@@ -220,7 +220,7 @@ fun SettingsScreen(
                     contentPadding = PaddingValues(bottom = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    // Card 1: Clean Logo + Version Update Check (Same Version Denied & New Version Notification) + GitHub APK Sync
+                    // Card 1: Clean Logo + Zero-Typing App Update Check (Same Version Denied & New Version Notification)
                     item {
                         GlassPanel(
                             cornerRadius = 24.dp,
@@ -234,7 +234,7 @@ fun SettingsScreen(
                                     .padding(18.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                // App Logo & Current Version Header
+                                // App Logo & Version Status Header (Zero Typing)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -258,9 +258,9 @@ fun SettingsScreen(
                                         )
                                         Text(
                                             text = if (isKm) {
-                                                "កំណែបច្ចុប្បន្ន៖ v${settings.appVersion}"
+                                                "កំណែដំឡើង៖ v${settings.appVersion}  •  កំណែចុងក្រោយ៖ v${settings.latestAvailableVersion}"
                                             } else {
-                                                "Current Installed Version: v${settings.appVersion}"
+                                                "Installed: v${settings.appVersion}  •  Latest Release: v${settings.latestAvailableVersion}"
                                             },
                                             style = MaterialTheme.typography.labelSmall,
                                             color = tokens.accentStart,
@@ -268,54 +268,37 @@ fun SettingsScreen(
                                             modifier = Modifier.testTag("installed_version_label")
                                         )
                                     }
-                                }
 
-                                // Version Input + Quick Bump Button
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    SettingsGlassTextField(
-                                        value = targetVersionInput,
-                                        placeholder = "Target version (e.g. 1.1.0)",
-                                        onValueChange = { targetVersionInput = it },
-                                        testTag = "update_target_version_input",
-                                        modifier = Modifier.weight(1f)
-                                    )
-
-                                    val nextVer = GitHubSyncHelper.suggestNextVersion(settings.appVersion)
+                                    // Live Version Badge (New Update vs Up to Date)
+                                    val badgeColor = if (hasNewUpdateAvailable) tokens.accentStart else tokens.textSecondary
                                     Box(
                                         modifier = Modifier
-                                            .testTag("bump_version_button")
-                                            .defaultMinSize(minHeight = 44.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(tokens.fieldFill)
-                                            .border(1.dp, tokens.panelBorder, RoundedCornerShape(12.dp))
-                                            .clickable {
-                                                targetVersionInput = nextVer
-                                                updateStatusText = if (isKm) {
-                                                    "បានប្តូរទៅកំណែថ្មី v$nextVer"
-                                                } else {
-                                                    "Target set to new version v$nextVer"
-                                                }
-                                                updateDeniedError = false
-                                            }
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        contentAlignment = Alignment.Center
+                                            .clip(CircleShape)
+                                            .background(badgeColor.copy(alpha = 0.14f))
+                                            .border(1.dp, badgeColor.copy(alpha = 0.6f), CircleShape)
+                                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                                            .testTag("version_comparison_badge")
                                     ) {
                                         Text(
-                                            text = "+ v$nextVer",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = tokens.accentStart,
+                                            text = if (hasNewUpdateAvailable) {
+                                                if (isKm) "មានកំណែថ្មី v${settings.latestAvailableVersion}" else "New v${settings.latestAvailableVersion}"
+                                            } else {
+                                                if (isKm) "កំណែដូចគ្នា" else "Same Version"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (hasNewUpdateAvailable) tokens.accentStart else tokens.textPrimary,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
 
-                                // Check Update Button (Denies if Same Version, Notifies if New Version!)
+                                // Check Update Button (Zero typing: installs & notifies when new version exists; Denies when same version!)
                                 GlassActionPill(
-                                    label = if (isKm) "ពិនិត្យមើលកំណែថ្មី (Check Update)" else "Check Update (Same Version Denied)",
+                                    label = if (hasNewUpdateAvailable) {
+                                        if (isKm) "ពិនិត្យ និងអាប់ដេតទៅ v${settings.latestAvailableVersion}" else "Check Update (Install v${settings.latestAvailableVersion})"
+                                    } else {
+                                        if (isKm) "ពិនិត្យមើលកំណែថ្មី (Check Update)" else "Check Update"
+                                    },
                                     icon = LineIconType.BELL,
                                     primary = true,
                                     onClick = {
@@ -326,10 +309,10 @@ fun SettingsScreen(
                                             val result = GitHubSyncHelper.checkAndVerifyUpdate(
                                                 context = context,
                                                 currentInstalledVersion = settings.appVersion,
-                                                targetVersionInput = targetVersionInput,
-                                                ownerRepo = repoInput,
-                                                branch = branchInput,
-                                                token = tokenInput
+                                                targetVersionInput = settings.latestAvailableVersion,
+                                                ownerRepo = settings.githubOwnerRepo,
+                                                branch = settings.githubBranch,
+                                                token = settings.githubToken
                                             )
                                             updateStatusText = result.message
                                             updateDeniedError = result.deniedSameVersion || !result.success
@@ -337,6 +320,7 @@ fun SettingsScreen(
                                                 onUpdateSettings {
                                                     it.copy(
                                                         appVersion = result.newVersion,
+                                                        latestAvailableVersion = result.newVersion,
                                                         notificationsEnabled = true
                                                     )
                                                 }
@@ -349,7 +333,55 @@ fun SettingsScreen(
                                         .testTag("setting_check_update_button")
                                 )
 
-                                // Status Banner for Denied / Approved Version Check
+                                // One-tap button to publish a new app version & trigger an update notification to the app
+                                GlassActionPill(
+                                    label = if (isSyncingGitHub) {
+                                        "Publishing new release..."
+                                    } else {
+                                        val nextVer = GitHubSyncHelper.suggestNextVersion(
+                                            if (hasNewUpdateAvailable) settings.latestAvailableVersion else settings.appVersion
+                                        )
+                                        if (isKm) {
+                                            "បញ្ចេញកំណែថ្មី v$nextVer និងផ្ញើការជូនដំណឹង"
+                                        } else {
+                                            "Send New Update Notification (v$nextVer)"
+                                        }
+                                    },
+                                    icon = LineIconType.CLOUD_UPLOAD,
+                                    onClick = {
+                                        if (isSyncingGitHub) return@GlassActionPill
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !settings.notificationsEnabled) {
+                                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        }
+                                        scope.launch {
+                                            isSyncingGitHub = true
+                                            val backupJson = onExportBackupJson()
+                                            val res = GitHubSyncHelper.publishNextReleaseUpdate(
+                                                context = context,
+                                                currentInstalledVersion = settings.appVersion,
+                                                currentLatestVersion = settings.latestAvailableVersion,
+                                                backupJson = backupJson
+                                            )
+                                            isSyncingGitHub = false
+                                            updateStatusText = res.message
+                                            updateDeniedError = false
+                                            if (res.success && res.newVersion.isNotBlank()) {
+                                                onUpdateSettings {
+                                                    it.copy(
+                                                        latestAvailableVersion = res.newVersion,
+                                                        notificationsEnabled = true
+                                                    )
+                                                }
+                                            }
+                                            onShowToast(res.message)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("setting_github_push_button")
+                                )
+
+                                // Status Banner for Denied (Same Version) / Approved (Updated & Notified)
                                 if (updateStatusText.isNotBlank()) {
                                     val bannerColor = if (updateDeniedError) Color(0xFFEF4444) else Color(0xFF10B981)
                                     Row(
@@ -376,89 +408,6 @@ fun SettingsScreen(
                                         )
                                     }
                                 }
-
-                                HorizontalDivider(thickness = 1.dp, color = tokens.panelBorder)
-
-                                // GitHub Repository & Token Inputs for APK Push
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    SettingsGlassTextField(
-                                        value = repoInput,
-                                        placeholder = "owner/repo (GitHub)",
-                                        onValueChange = {
-                                            repoInput = it
-                                            onUpdateSettings { s -> s.copy(githubOwnerRepo = it) }
-                                        },
-                                        testTag = "github_repo_input",
-                                        modifier = Modifier.weight(1.4f)
-                                    )
-                                    SettingsGlassTextField(
-                                        value = branchInput,
-                                        placeholder = "Branch (main)",
-                                        onValueChange = {
-                                            branchInput = it
-                                            onUpdateSettings { s -> s.copy(githubBranch = it) }
-                                        },
-                                        testTag = "github_branch_input",
-                                        modifier = Modifier.weight(0.8f)
-                                    )
-                                }
-
-                                SettingsGlassTextField(
-                                    value = tokenInput,
-                                    placeholder = "GitHub Personal Access Token (ghp_...)",
-                                    isPassword = true,
-                                    onValueChange = {
-                                        tokenInput = it
-                                        onUpdateSettings { s -> s.copy(githubToken = it) }
-                                    },
-                                    testTag = "github_token_input",
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-
-                                GlassActionPill(
-                                    label = if (isSyncingGitHub) "Pushing APK to GitHub..." else strings.githubPushApkBtn,
-                                    icon = LineIconType.CLOUD_UPLOAD,
-                                    onClick = {
-                                        if (isSyncingGitHub) return@GlassActionPill
-                                        scope.launch {
-                                            isSyncingGitHub = true
-                                            val backupJson = onExportBackupJson()
-                                            val res = GitHubSyncHelper.pushApkAndBackupToGitHub(
-                                                context = context,
-                                                currentInstalledVersion = settings.appVersion,
-                                                targetVersionInput = targetVersionInput,
-                                                ownerRepo = repoInput,
-                                                branch = branchInput,
-                                                token = tokenInput,
-                                                backupJson = backupJson,
-                                                onStatusUpdate = { status ->
-                                                    updateStatusText = status
-                                                    updateDeniedError = false
-                                                }
-                                            )
-                                            isSyncingGitHub = false
-                                            updateStatusText = res.message
-                                            updateDeniedError = res.deniedSameVersion || !res.success
-                                            if (res.success && res.newVersion.isNotBlank()) {
-                                                onUpdateSettings {
-                                                    it.copy(
-                                                        appVersion = res.newVersion,
-                                                        githubOwnerRepo = repoInput,
-                                                        githubBranch = branchInput,
-                                                        githubToken = tokenInput
-                                                    )
-                                                }
-                                            }
-                                            onShowToast(res.message)
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("setting_github_push_button")
-                                )
                             }
                         }
                     }

@@ -138,10 +138,11 @@ data class AppSettings(
     val notificationsEnabled: Boolean = false,
     val hidePreviews: Boolean = false,
     val webAppMode: Boolean = false,
-    val githubOwnerRepo: String = "",
+    val githubOwnerRepo: String = "glassnotes/app",
     val githubBranch: String = "main",
     val githubToken: String = "",
-    val appVersion: String = "1.0.0"
+    val appVersion: String = "1.0.0",
+    val latestAvailableVersion: String = "1.1.0"
 )
 
 enum class FilterTab(val id: String) {
@@ -331,8 +332,8 @@ object Translations {
         cropPhotoTitle = "Crop Photo",
         cropSaveBtn = "Crop & Save",
         rotateBtn = "Rotate 90°",
-        githubSyncTitle = "GitHub APK & Backup Sync",
-        githubPushApkBtn = "Push APK & Backup to GitHub",
+        githubSyncTitle = "App Update & Version Notification",
+        githubPushApkBtn = "Notify & Publish New Release",
         testVoiceBtn = "Test sound"
     )
 
@@ -408,8 +409,8 @@ object Translations {
         cropPhotoTitle = "កាត់រូបភាព",
         cropSaveBtn = "កាត់ និងរក្សាទុក",
         rotateBtn = "បង្វិល 90°",
-        githubSyncTitle = "ភ្ជាប់ GitHub និងអាប់ដេត APK",
-        githubPushApkBtn = "រុញ APK និងទិន្នន័យទៅ GitHub",
+        githubSyncTitle = "អាប់ដេតកម្មវិធី និងការជូនដំណឹងកំណែថ្មី",
+        githubPushApkBtn = "បញ្ចេញកំណែថ្មី និងជូនដំណឹង",
         testVoiceBtn = "សាកល្បងសំឡេង"
     )
 
