@@ -64,7 +64,7 @@ export type ThemeOption = 'system' | 'light' | 'dark';
 export type FontOption = 'figtree' | 'serif' | 'mono' | 'custom';
 export type LanguageOption = 'en' | 'km';
 export type NoteType = 'text' | 'checklist';
-export type AttachmentType = 'voice' | 'image' | 'scan' | 'drawing';
+export type AttachmentType = 'voice' | 'image' | 'scan' | 'drawing' | 'video' | 'pdf' | 'doc';
 
 export interface NoteAttachment {
   id: string;
@@ -73,7 +73,28 @@ export interface NoteAttachment {
   dataBase64: string;
   durationSec?: number;
   createdAt: number;
+  pages?: string[]; // for multi-page scans
+  pdfDataUri?: string; // for compiled PDF export
+  ocrText?: string; // extracted text from document scanner
+  fileSize?: number;
 }
+
+export interface FolderItem {
+  id: string;
+  name: string;
+  parentId: string | null;
+  color: string;
+  icon: string;
+  isPinned: boolean;
+  isArchived: boolean;
+  isTrashed: boolean;
+  trashedAt?: number | null;
+  createdAt: number;
+  updatedAt: number;
+  order: number;
+}
+
+export type NoteSortOption = 'updated' | 'created' | 'nameAsc' | 'nameDesc';
 
 export interface ChecklistItem {
   id: string;

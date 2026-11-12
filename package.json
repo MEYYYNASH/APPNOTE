@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "lucide-react": "^1.16.0",
+    "jspdf": "^2.5.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

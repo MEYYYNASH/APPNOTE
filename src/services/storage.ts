@@ -1,9 +1,10 @@
-import { Note, AppSettings, ChecklistItem, NoteVersion, ActivityLogEntry } from '../types/note';
+import { Note, AppSettings, ChecklistItem, NoteVersion, ActivityLogEntry, FolderItem } from '../types/note';
 
 const PREFS_NAME = 'glass_notes_local_storage';
 const KEY_NOTES = 'glass_notes_data_v1';
 const KEY_SETTINGS = 'glass_notes_settings_v1';
 const KEY_RECENT_SEARCHES = 'glass_notes_recent_searches_v1';
+const KEY_FOLDERS = 'glass_notes_folders_v1';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
@@ -31,6 +32,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 let inMemoryFallbackNotes: string | null = null;
 let inMemoryFallbackSettings: string | null = null;
 let inMemoryFallbackSearches: string | null = null;
+let inMemoryFallbackFolders: string | null = null;
 
 function safeGet(key: string): string | null {
   try {
@@ -39,6 +41,7 @@ function safeGet(key: string): string | null {
     if (key === KEY_NOTES) return inMemoryFallbackNotes;
     if (key === KEY_SETTINGS) return inMemoryFallbackSettings;
     if (key === KEY_RECENT_SEARCHES) return inMemoryFallbackSearches;
+    if (key === KEY_FOLDERS) return inMemoryFallbackFolders;
     return null;
   }
 }
@@ -51,8 +54,101 @@ function safeSet(key: string, val: string): boolean {
     if (key === KEY_NOTES) inMemoryFallbackNotes = val;
     if (key === KEY_SETTINGS) inMemoryFallbackSettings = val;
     if (key === KEY_RECENT_SEARCHES) inMemoryFallbackSearches = val;
+    if (key === KEY_FOLDERS) inMemoryFallbackFolders = val;
     return false;
   }
+}
+
+export function createSeedFolders(): FolderItem[] {
+  const now = Date.now();
+  return [
+    {
+      id: 'f-product',
+      name: 'Product',
+      parentId: null,
+      color: '#3B82F6',
+      icon: 'briefcase',
+      isPinned: true,
+      isArchived: false,
+      isTrashed: false,
+      createdAt: now - 3600_000 * 48,
+      updatedAt: now - 3600_000 * 2,
+      order: 0,
+    },
+    {
+      id: 'f-design',
+      name: 'Design Specs',
+      parentId: 'f-product',
+      color: '#EC4899',
+      icon: 'sparkles',
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      createdAt: now - 3600_000 * 24,
+      updatedAt: now - 3600_000 * 1,
+      order: 1,
+    },
+    {
+      id: 'f-engineering',
+      name: 'Engineering',
+      parentId: null,
+      color: '#8B5CF6',
+      icon: 'code',
+      isPinned: true,
+      isArchived: false,
+      isTrashed: false,
+      createdAt: now - 3600_000 * 36,
+      updatedAt: now - 3600_000 * 3,
+      order: 2,
+    },
+    {
+      id: 'f-architecture',
+      name: 'Architecture',
+      parentId: null,
+      color: '#10B981',
+      icon: 'book',
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      createdAt: now - 3600_000 * 50,
+      updatedAt: now - 3600_000 * 10,
+      order: 3,
+    },
+    {
+      id: 'f-personal',
+      name: 'Personal',
+      parentId: null,
+      color: '#F59E0B',
+      icon: 'heart',
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      createdAt: now - 3600_000 * 60,
+      updatedAt: now - 3600_000 * 12,
+      order: 4,
+    },
+  ];
+}
+
+export function loadFolders(): FolderItem[] {
+  const raw = safeGet(KEY_FOLDERS);
+  if (!raw) {
+    const seeded = createSeedFolders();
+    saveFolders(seeded);
+    return seeded;
+  }
+  try {
+    const list: FolderItem[] = JSON.parse(raw);
+    return Array.isArray(list) ? list : createSeedFolders();
+  } catch {
+    const seeded = createSeedFolders();
+    saveFolders(seeded);
+    return seeded;
+  }
+}
+
+export function saveFolders(folders: FolderItem[]): boolean {
+  return safeSet(KEY_FOLDERS, JSON.stringify(folders));
 }
 
 export function createSeedNotes(): Note[] {
@@ -227,29 +323,39 @@ export function calculateStorageBytes(): number {
   return n + s + r;
 }
 
-export function exportFullBackupJson(notes: Note[], settings: AppSettings, recentSearches: string[]): string {
+export function exportFullBackupJson(
+  notes: Note[],
+  settings: AppSettings,
+  recentSearches: string[],
+  folders: FolderItem[] = loadFolders()
+): string {
   const backup = {
     version: settings.appVersion,
     exportedAt: Date.now(),
     notes,
+    folders,
     settings,
     recentSearches,
   };
   return JSON.stringify(backup, null, 2);
 }
 
-export function importFullBackupJson(jsonString: string): { notes: Note[]; settings: AppSettings } | null {
+export function importFullBackupJson(
+  jsonString: string
+): { notes: Note[]; settings: AppSettings; folders: FolderItem[] } | null {
   try {
     const data = JSON.parse(jsonString);
     if (!data || !Array.isArray(data.notes)) return null;
     const notes: Note[] = data.notes;
+    const folders: FolderItem[] = Array.isArray(data.folders) ? data.folders : loadFolders();
     const settings: AppSettings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
     saveNotes(notes);
+    saveFolders(folders);
     saveSettings(settings);
     if (Array.isArray(data.recentSearches)) {
       saveRecentSearches(data.recentSearches);
     }
-    return { notes, settings };
+    return { notes, settings, folders };
   } catch {
     return null;
   }

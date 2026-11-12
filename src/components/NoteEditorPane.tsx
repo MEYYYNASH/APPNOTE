@@ -6,7 +6,7 @@ import {
   AppStrings,
   ChecklistItem,
   AttachmentType,
-  NoteVersion,
+  FolderItem,
 } from '../types/note';
 import {
   ArrowLeft,
@@ -31,11 +31,37 @@ import {
   Folder,
   Tag,
   Check,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Heading1,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  Quote,
+  Code,
+  Link,
+  Table as TableIcon,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Maximize2,
+  Minimize2,
+  BookOpen,
+  Camera,
+  Video,
+  FileCode,
+  Download,
+  RotateCcw,
+  RotateCw,
 } from 'lucide-react';
 import { playBase64Audio, stopActiveAudio } from '../utils/audio';
 
 interface NoteEditorPaneProps {
   note: Note | null;
+  folders: FolderItem[];
   showBackButton: boolean;
   isMarkdownPreview: boolean;
   strings: AppStrings;
@@ -59,13 +85,16 @@ interface NoteEditorPaneProps {
   onOpenImageUpload: () => void;
   onOpenPhotoCrop: (b64: string) => void;
   onOpenDrawingCanvas: () => void;
+  onOpenScanner: () => void;
   onOpenHistory: () => void;
   onRemoveAttachment: (attachmentId: string) => void;
+  onAddAttachment: (type: AttachmentType, name: string, dataBase64: string, durationSec?: number, extra?: any) => void;
   onShowToast: (msg: string) => void;
 }
 
 export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   note,
+  folders,
   showBackButton,
   isMarkdownPreview,
   strings,
@@ -80,13 +109,42 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   onOpenImageUpload,
   onOpenPhotoCrop,
   onOpenDrawingCanvas,
+  onOpenScanner,
   onOpenHistory,
   onRemoveAttachment,
+  onAddAttachment,
   onShowToast,
 }) => {
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [audioProgress, setAudioProgress] = useState(0);
+
+  // Editor View Modes
+  const [isReadingMode, setIsReadingMode] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // History Stack for Undo/Redo
+  const [historyStack, setHistoryStack] = useState<string[]>([]);
+  const [redoStack, setRedoStack] = useState<string[]>([]);
+
+  // Formatting state
+  const [textColor, setTextColor] = useState('#000000');
+  const [fontSize, setFontSize] = useState('16px');
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
+
+  // Table Modal
+  const [showTableModal, setShowTableModal] = useState(false);
+  const [tableRows, setTableRows] = useState(3);
+  const [tableCols, setTableCols] = useState(3);
+
+  // Hyperlink Modal
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkText, setLinkText] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Stop playback on unmount
   useEffect(() => {
@@ -114,10 +172,111 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   };
 
   const wordCount = note.body.trim() ? note.body.trim().split(/\s+/).length : 0;
+  const charCount = note.body.length;
+  const readTimeMin = Math.max(1, Math.ceil(wordCount / 200));
+
   const doneItems = note.checklist.filter((i) => i.isDone).length;
   const checklistPercent = note.checklist.length
     ? Math.round((doneItems / note.checklist.length) * 100)
     : 0;
+
+  // Text formatting helpers for textarea insertion
+  const applyFormatting = (before: string, after = before, defaultText = 'text') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = note.body.substring(start, end) || defaultText;
+    const replacement = `${before}${selected}${after}`;
+
+    // Push to undo stack
+    setHistoryStack((prev) => [...prev, note.body]);
+    setRedoStack([]);
+
+    const newBody = note.body.substring(0, start) + replacement + note.body.substring(end);
+    onUpdateNote(
+      note.title,
+      newBody,
+      note.isChecklist,
+      note.checklist,
+      note.tags,
+      note.folder,
+      note.color,
+      note.isPinned
+    );
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + before.length, start + before.length + selected.length);
+    }, 50);
+  };
+
+  const handleUndo = () => {
+    if (historyStack.length === 0) return;
+    const prev = historyStack[historyStack.length - 1];
+    setRedoStack((r) => [...r, note.body]);
+    setHistoryStack((h) => h.slice(0, -1));
+    onUpdateNote(
+      note.title,
+      prev,
+      note.isChecklist,
+      note.checklist,
+      note.tags,
+      note.folder,
+      note.color,
+      note.isPinned
+    );
+  };
+
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    setHistoryStack((h) => [...h, note.body]);
+    setRedoStack((r) => r.slice(0, -1));
+    onUpdateNote(
+      note.title,
+      next,
+      note.isChecklist,
+      note.checklist,
+      note.tags,
+      note.folder,
+      note.color,
+      note.isPinned
+    );
+  };
+
+  // Insert Table Markdown Grid
+  const handleInsertTable = () => {
+    let header = '|';
+    let divider = '|';
+    for (let c = 1; c <= tableCols; c++) {
+      header += ` Header ${c} |`;
+      divider += ' --- |';
+    }
+    let rowsStr = '';
+    for (let r = 1; r <= tableRows; r++) {
+      let row = '|';
+      for (let c = 1; c <= tableCols; c++) {
+        row += ` Item ${r},${c} |`;
+      }
+      rowsStr += `\n${row}`;
+    }
+    const tableMarkdown = `\n\n${header}\n${divider}${rowsStr}\n\n`;
+    applyFormatting('', '', tableMarkdown);
+    setShowTableModal(false);
+    onShowToast('Table inserted!');
+  };
+
+  // Insert Hyperlink
+  const handleInsertLink = () => {
+    if (!linkUrl) return;
+    const text = linkText || linkUrl;
+    applyFormatting('', '', `[${text}](${linkUrl})`);
+    setShowLinkModal(false);
+    setLinkText('');
+    setLinkUrl('');
+  };
 
   // Handlers for updating note fields
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -174,7 +333,6 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
 
   const handleToggleChecklist = () => {
     if (!note.isChecklist) {
-      // Convert text lines to checklist
       const lines = note.body.split('\n').filter((l) => l.trim().length > 0);
       const items: ChecklistItem[] = lines.map((l, idx) => ({
         id: `c_${Date.now()}_${idx}`,
@@ -192,52 +350,24 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
         note.isPinned
       );
     } else {
-      // Convert checklist back to text
       const body = note.checklist.map((i) => (i.isDone ? `✓ ${i.text}` : i.text)).join('\n');
-      onUpdateNote(
-        note.title,
-        body,
-        false,
-        [],
-        note.tags,
-        note.folder,
-        note.color,
-        note.isPinned
-      );
+      onUpdateNote(note.title, body, false, [], note.tags, note.folder, note.color, note.isPinned);
     }
   };
 
-  // Checklist item modifications
+  // Checklist item actions
   const handleCheckItemToggle = (itemId: string) => {
     const next = note.checklist.map((item) =>
       item.id === itemId ? { ...item, isDone: !item.isDone } : item
     );
-    onUpdateNote(
-      note.title,
-      note.body,
-      true,
-      next,
-      note.tags,
-      note.folder,
-      note.color,
-      note.isPinned
-    );
+    onUpdateNote(note.title, note.body, true, next, note.tags, note.folder, note.color, note.isPinned);
   };
 
   const handleCheckItemText = (itemId: string, text: string) => {
     const next = note.checklist.map((item) =>
       item.id === itemId ? { ...item, text } : item
     );
-    onUpdateNote(
-      note.title,
-      note.body,
-      true,
-      next,
-      note.tags,
-      note.folder,
-      note.color,
-      note.isPinned
-    );
+    onUpdateNote(note.title, note.body, true, next, note.tags, note.folder, note.color, note.isPinned);
   };
 
   const handleCheckItemAdd = (afterIdx?: number) => {
@@ -248,30 +378,12 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     } else {
       next.push(newItem);
     }
-    onUpdateNote(
-      note.title,
-      note.body,
-      true,
-      next,
-      note.tags,
-      note.folder,
-      note.color,
-      note.isPinned
-    );
+    onUpdateNote(note.title, note.body, true, next, note.tags, note.folder, note.color, note.isPinned);
   };
 
   const handleCheckItemRemove = (itemId: string) => {
     const next = note.checklist.filter((item) => item.id !== itemId);
-    onUpdateNote(
-      note.title,
-      note.body,
-      true,
-      next,
-      note.tags,
-      note.folder,
-      note.color,
-      note.isPinned
-    );
+    onUpdateNote(note.title, note.body, true, next, note.tags, note.folder, note.color, note.isPinned);
   };
 
   const handleCheckItemKeyDown = (
@@ -297,7 +409,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
 
     navigator.clipboard.writeText(text).then(
       () => onShowToast('Copied to clipboard'),
-      () => onShowToast("Couldn't copy. Please select and copy text manually.")
+      () => onShowToast("Couldn't copy text.")
     );
   };
 
@@ -320,56 +432,135 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     }
   };
 
-  // Image file input handler
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Video and PDF file upload handlers
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      const b64 = (reader.result as string).replace(/^data:image\/\w+;base64,/, '');
-      onOpenPhotoCrop(b64);
+      const b64 = (reader.result as string).replace(/^data:video\/\w+;base64,/, '');
+      onAddAttachment('video', file.name, b64, 0, { fileSize: file.size });
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  // Simple Markdown renderer
+  const handlePdfUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = (reader.result as string).replace(/^data:application\/pdf;base64,/, '');
+      onAddAttachment('pdf', file.name, b64, 0, { fileSize: file.size });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // Markdown renderer supporting Tables, Code blocks, Lists, and Links
   const renderMarkdown = (text: string) => {
     const lines = text.split('\n');
+    let inTable = false;
+    let tableRowsData: string[][] = [];
+
     return (
-      <div className="prose dark:prose-invert max-w-none text-sm space-y-2 p-4">
+      <div className="prose dark:prose-invert max-w-none text-sm space-y-2 p-6 font-normal">
         {lines.map((line, idx) => {
+          // Table parsing
+          if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+            const cells = line
+              .split('|')
+              .slice(1, -1)
+              .map((c) => c.trim());
+            if (cells.some((c) => c.includes('---'))) {
+              return null; // separator row
+            }
+            return (
+              <div key={idx} className="overflow-x-auto my-1">
+                <table className="w-full border-collapse border border-white/30 text-xs rounded-xl overflow-hidden glass-card">
+                  <tbody>
+                    <tr className="border-b border-white/20">
+                      {cells.map((cell, cIdx) => (
+                        <td key={cIdx} className="p-2 border-r border-white/20 font-medium">
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          }
+
           if (line.startsWith('# ')) {
             return (
-              <h1 key={idx} className="text-xl font-bold border-b pb-1">
+              <h1 key={idx} className="text-2xl font-bold border-b border-white/20 pb-1 mt-4">
                 {line.slice(2)}
               </h1>
             );
           }
           if (line.startsWith('## ')) {
             return (
-              <h2 key={idx} className="text-lg font-bold">
+              <h2 key={idx} className="text-xl font-bold mt-3">
                 {line.slice(3)}
               </h2>
             );
           }
           if (line.startsWith('### ')) {
             return (
-              <h3 key={idx} className="text-base font-semibold">
+              <h3 key={idx} className="text-lg font-semibold mt-2">
                 {line.slice(4)}
               </h3>
             );
           }
+          if (line.startsWith('> ')) {
+            return (
+              <blockquote key={idx} className="pl-3 border-l-4 border-blue-500 italic my-2 text-slate-500">
+                {line.slice(2)}
+              </blockquote>
+            );
+          }
+          if (line.startsWith('```')) {
+            return (
+              <pre key={idx} className="p-3 rounded-xl bg-slate-900 text-cyan-400 font-mono text-xs my-2 overflow-x-auto">
+                {line.slice(3)}
+              </pre>
+            );
+          }
           if (line.startsWith('- ') || line.startsWith('* ')) {
             return (
-              <li key={idx} className="ml-4 list-disc">
+              <li key={idx} className="ml-5 list-disc">
                 {line.slice(2)}
+              </li>
+            );
+          }
+          if (/^\d+\.\s/.test(line)) {
+            return (
+              <li key={idx} className="ml-5 list-decimal">
+                {line.replace(/^\d+\.\s/, '')}
               </li>
             );
           }
           if (line.trim() === '') {
             return <div key={idx} className="h-2" />;
           }
+
+          // Link regex replace
+          const linkMatch = line.match(/\[(.*?)\]\((.*?)\)/);
+          if (linkMatch) {
+            const [full, label, url] = linkMatch;
+            const parts = line.split(full);
+            return (
+              <p key={idx}>
+                {parts[0]}
+                <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline font-semibold">
+                  {label}
+                </a>
+                {parts[1]}
+              </p>
+            );
+          }
+
           return <p key={idx}>{line}</p>;
         })}
       </div>
@@ -377,29 +568,40 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   };
 
   return (
-    <main className="flex-1 flex flex-col h-full overflow-hidden glass-panel rounded-3xl z-10">
-      {/* Hidden file input for uploading images */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        accept="image/*"
-        onChange={handleImageFileChange}
-        className="hidden"
-      />
+    <main
+      className={`flex-1 flex flex-col h-full overflow-hidden glass-panel rounded-3xl z-10 transition-all ${
+        isFullScreen ? 'fixed inset-2 z-50 rounded-3xl shadow-2xl' : ''
+      }`}
+    >
+      {/* Hidden file inputs */}
+      <input type="file" ref={fileInputRef} accept="image/*" onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const b64 = (reader.result as string).replace(/^data:image\/\w+;base64,/, '');
+          onOpenPhotoCrop(b64);
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+      }} className="hidden" />
 
-      {/* Top Toolbar */}
-      <div className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-3 border-b border-white/20 overflow-x-auto scrollbar-none flex-none">
+      <input type="file" ref={videoInputRef} accept="video/*" onChange={handleVideoUpload} className="hidden" />
+      <input type="file" ref={pdfInputRef} accept=".pdf,application/pdf" onChange={handlePdfUpload} className="hidden" />
+
+      {/* Top Action Bar */}
+      <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 border-b border-white/20 overflow-x-auto scrollbar-none flex-none">
         {showBackButton && (
           <button
             onClick={onBack}
-            className="w-9 h-9 rounded-full glass-field flex items-center justify-center hover:opacity-85 active:scale-95 transition-all flex-none"
+            className="w-8 h-8 rounded-full glass-field flex items-center justify-center hover:opacity-85 active:scale-95 transition-all flex-none"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={16} />
           </button>
         )}
 
         {/* 6 Color Swatches */}
-        <div className="flex items-center gap-1.5 px-1 flex-none">
+        <div className="flex items-center gap-1 px-1 flex-none">
           {(Object.keys(NOTE_COLORS) as NoteColorId[]).map((cid) => {
             const conf = NOTE_COLORS[cid];
             const isSelected = note.color === cid;
@@ -420,6 +622,27 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
 
         <div className="flex-1 min-w-2" />
 
+        {/* Document Scanner Button */}
+        <button
+          onClick={onOpenScanner}
+          title="Document Scanner"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 text-white text-xs font-bold shadow hover:brightness-110 active:scale-95 transition-all flex-none"
+        >
+          <Camera size={14} />
+          <span className="hidden sm:inline">Scan</span>
+        </button>
+
+        {/* Reading Mode Toggle */}
+        <button
+          onClick={() => setIsReadingMode((v) => !v)}
+          title="Reading Mode"
+          className={`w-8 h-8 rounded-full glass-field flex items-center justify-center transition-all flex-none ${
+            isReadingMode ? 'bg-amber-500 text-white shadow-sm' : 'hover:opacity-80'
+          }`}
+        >
+          <BookOpen size={14} />
+        </button>
+
         {/* Pin toggle */}
         <button
           onClick={handleTogglePin}
@@ -428,7 +651,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
             note.isPinned ? 'bg-blue-500 text-white shadow-sm' : 'hover:opacity-80'
           }`}
         >
-          <Pin size={15} className={note.isPinned ? 'fill-white' : ''} />
+          <Pin size={14} className={note.isPinned ? 'fill-white' : ''} />
         </button>
 
         {/* Note Type Toggle (Checklist <-> Text) */}
@@ -439,7 +662,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
             note.isChecklist ? 'bg-indigo-500 text-white shadow-sm' : 'hover:opacity-80'
           }`}
         >
-          <CheckSquare size={15} />
+          <CheckSquare size={14} />
         </button>
 
         {/* Markdown Preview Toggle */}
@@ -451,7 +674,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
               isMarkdownPreview ? 'bg-purple-500 text-white shadow-sm' : 'hover:opacity-80'
             }`}
           >
-            {isMarkdownPreview ? <Edit3 size={15} /> : <Eye size={15} />}
+            {isMarkdownPreview ? <Edit3 size={14} /> : <Eye size={14} />}
           </button>
         )}
 
@@ -463,37 +686,10 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
             note.reminderAt ? 'bg-amber-500 text-white shadow-sm' : 'hover:opacity-80'
           }`}
         >
-          <Bell size={15} />
+          <Bell size={14} />
           {note.reminderAt && (
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
           )}
-        </button>
-
-        {/* Voice Attachment */}
-        <button
-          onClick={onOpenVoiceRecorder}
-          title={strings.voiceBtn}
-          className="w-8 h-8 rounded-full glass-field flex items-center justify-center hover:opacity-80 active:scale-95 transition-all flex-none"
-        >
-          <Mic size={15} />
-        </button>
-
-        {/* Image Attachment (opens file picker) */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          title={strings.imageBtn}
-          className="w-8 h-8 rounded-full glass-field flex items-center justify-center hover:opacity-80 active:scale-95 transition-all flex-none"
-        >
-          <ImageIcon size={15} />
-        </button>
-
-        {/* Drawing Canvas */}
-        <button
-          onClick={onOpenDrawingCanvas}
-          title={strings.drawBtn}
-          className="w-8 h-8 rounded-full glass-field flex items-center justify-center hover:opacity-80 active:scale-95 transition-all flex-none"
-        >
-          <PenTool size={15} />
         </button>
 
         {/* History / Snapshots */}
@@ -502,25 +698,16 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
           title={strings.historyTitle}
           className="w-8 h-8 rounded-full glass-field flex items-center justify-center hover:opacity-80 active:scale-95 transition-all flex-none"
         >
-          <History size={15} />
+          <History size={14} />
         </button>
 
-        {/* Duplicate */}
+        {/* Full-Screen Toggle */}
         <button
-          onClick={onDuplicateNote}
-          title={strings.duplicateBtn}
+          onClick={() => setIsFullScreen((v) => !v)}
+          title={isFullScreen ? 'Exit Full Screen' : 'Full Screen'}
           className="w-8 h-8 rounded-full glass-field flex items-center justify-center hover:opacity-80 active:scale-95 transition-all flex-none"
         >
-          <Copy size={15} />
-        </button>
-
-        {/* Copy text */}
-        <button
-          onClick={handleCopyNote}
-          title={strings.copyBtn}
-          className="w-8 h-8 rounded-full glass-field flex items-center justify-center hover:opacity-80 active:scale-95 transition-all flex-none"
-        >
-          <Copy size={15} />
+          {isFullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
         </button>
 
         {/* Delete */}
@@ -529,25 +716,125 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
           title={strings.deleteBtn}
           className="w-8 h-8 rounded-full glass-field text-red-500 hover:bg-red-500/10 active:scale-95 transition-all flex-none"
         >
-          <Trash2 size={15} />
+          <Trash2 size={14} />
         </button>
       </div>
+
+      {/* Advanced Rich Text Formatting Toolbar (Visible in edit mode, hidden in reading mode or checklists) */}
+      {!isReadingMode && !note.isChecklist && !isMarkdownPreview && (
+        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-white/15 bg-white/30 dark:bg-slate-900/30 overflow-x-auto scrollbar-none flex-none text-xs">
+          {/* Undo / Redo */}
+          <button
+            onClick={handleUndo}
+            disabled={historyStack.length === 0}
+            title="Undo"
+            className="w-7 h-7 rounded-lg glass-field flex items-center justify-center disabled:opacity-40"
+          >
+            <RotateCcw size={13} />
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={redoStack.length === 0}
+            title="Redo"
+            className="w-7 h-7 rounded-lg glass-field flex items-center justify-center disabled:opacity-40"
+          >
+            <RotateCw size={13} />
+          </button>
+
+          <span className="w-px h-4 bg-white/20 mx-1" />
+
+          {/* Bold, Italic, Underline, Strikethrough */}
+          <button onClick={() => applyFormatting('**', '**', 'bold text')} title="Bold" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Bold size={13} />
+          </button>
+          <button onClick={() => applyFormatting('*', '*', 'italic text')} title="Italic" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Italic size={13} />
+          </button>
+          <button onClick={() => applyFormatting('<u>', '</u>', 'underlined text')} title="Underline" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Underline size={13} />
+          </button>
+          <button onClick={() => applyFormatting('~~', '~~', 'strikethrough text')} title="Strikethrough" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Strikethrough size={13} />
+          </button>
+
+          <span className="w-px h-4 bg-white/20 mx-1" />
+
+          {/* Headings */}
+          <button onClick={() => applyFormatting('# ', '', 'Heading 1')} title="Heading 1" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center font-bold text-xs">
+            H1
+          </button>
+          <button onClick={() => applyFormatting('## ', '', 'Heading 2')} title="Heading 2" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center font-bold text-xs">
+            H2
+          </button>
+          <button onClick={() => applyFormatting('### ', '', 'Heading 3')} title="Heading 3" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center font-bold text-xs">
+            H3
+          </button>
+
+          <span className="w-px h-4 bg-white/20 mx-1" />
+
+          {/* Lists & Blockquote & Code */}
+          <button onClick={() => applyFormatting('- ', '', 'List item')} title="Bullet List" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <List size={13} />
+          </button>
+          <button onClick={() => applyFormatting('1. ', '', 'Numbered item')} title="Numbered List" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <ListOrdered size={13} />
+          </button>
+          <button onClick={() => applyFormatting('> ', '', 'Quote text')} title="Blockquote" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Quote size={13} />
+          </button>
+          <button onClick={() => applyFormatting('```\n', '\n```', 'code block')} title="Code Block" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Code size={13} />
+          </button>
+
+          <span className="w-px h-4 bg-white/20 mx-1" />
+
+          {/* Table & Hyperlink */}
+          <button onClick={() => setShowTableModal(true)} title="Insert Table" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <TableIcon size={13} />
+          </button>
+          <button onClick={() => setShowLinkModal(true)} title="Insert Link" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Link size={13} />
+          </button>
+
+          <span className="w-px h-4 bg-white/20 mx-1" />
+
+          {/* Media Attachment shortcuts */}
+          <button onClick={() => fileInputRef.current?.click()} title="Insert Image" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <ImageIcon size={13} />
+          </button>
+          <button onClick={() => videoInputRef.current?.click()} title="Attach Video" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Video size={13} />
+          </button>
+          <button onClick={() => pdfInputRef.current?.click()} title="Attach PDF" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <FileCode size={13} />
+          </button>
+          <button onClick={onOpenVoiceRecorder} title="Record Voice" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Mic size={13} />
+          </button>
+          <button onClick={onOpenDrawingCanvas} title="Drawing Canvas" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <PenTool size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Editor Content Area */}
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
         {/* Title Input */}
-        <div className="px-5 pt-4 pb-1">
+        <div className="px-6 pt-5 pb-1">
           <input
             type="text"
             value={note.title}
             onChange={handleTitleChange}
+            readOnly={isReadingMode}
             placeholder={strings.untitledNote}
-            className="w-full text-2xl font-bold bg-transparent outline-none tracking-tight placeholder:text-slate-400"
+            className={`w-full text-2xl sm:text-3xl font-extrabold bg-transparent outline-none tracking-tight placeholder:text-slate-400 ${
+              isReadingMode ? 'cursor-default' : ''
+            }`}
           />
         </div>
 
-        {/* Metadata Bar */}
-        <div className="flex items-center gap-3 px-5 py-1 text-xs text-slate-500 dark:text-slate-400">
+        {/* Metadata & Word/Char Counter Bar */}
+        <div className="flex items-center gap-3 px-6 py-1 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
           {note.isChecklist ? (
             <div className="flex items-center gap-2 flex-1 max-w-xs">
               <span className="font-semibold text-blue-500">
@@ -562,13 +849,13 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
             </div>
           ) : (
             <span>
-              {wordCount} {strings.wordsLabel} · {strings.editedLabel} {formatTime(note.updatedAt)}
+              {wordCount} words · {charCount} chars · {readTimeMin} min read · Edited {formatTime(note.updatedAt)}
             </span>
           )}
 
           {/* Active Reminder Pill */}
           {note.reminderAt && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold ml-auto">
+            <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold ml-auto">
               <Clock size={11} />
               <span>{new Date(note.reminderAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
             </div>
@@ -576,11 +863,10 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
         </div>
 
         {/* Folder & Tags Sub-row */}
-        <div className="flex items-center gap-2 px-5 py-1.5 text-xs">
-          <div className="flex items-center gap-1 px-2 py-1 rounded-xl glass-field flex-1 max-w-[160px]">
-            <Folder size={12} className="text-slate-400 flex-none" />
-            <input
-              type="text"
+        <div className="flex items-center gap-2 px-6 py-2 text-xs flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl glass-field flex-1 max-w-[200px]">
+            <Folder size={13} className="text-blue-500 flex-none" />
+            <select
               value={note.folder}
               onChange={(e) =>
                 onUpdateNote(
@@ -594,13 +880,19 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                   note.isPinned
                 )
               }
-              placeholder={strings.folderPlaceholder}
-              className="bg-transparent outline-none w-full text-xs"
-            />
+              className="bg-transparent outline-none w-full text-xs font-semibold cursor-pointer"
+            >
+              <option value="">No folder</option>
+              {folders.map((f) => (
+                <option key={f.id} value={f.name}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="flex items-center gap-1 px-2 py-1 rounded-xl glass-field flex-1 max-w-[240px]">
-            <Tag size={12} className="text-slate-400 flex-none" />
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl glass-field flex-1 max-w-[260px]">
+            <Tag size={13} className="text-slate-400 flex-none" />
             <input
               type="text"
               value={note.tags.join(', ')}
@@ -627,7 +919,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
 
         {/* Attachments Section */}
         {note.attachments.length > 0 && (
-          <div className="px-5 py-2 flex flex-col gap-2">
+          <div className="px-6 py-2 flex flex-col gap-2">
             {note.attachments.map((att) => {
               if (att.type === 'voice') {
                 const isPlaying = playingAudioId === att.id;
@@ -660,6 +952,48 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                     >
                       <X size={15} />
                     </button>
+                  </div>
+                );
+              }
+
+              if (att.type === 'video') {
+                const pfx = att.dataBase64.startsWith('data:') ? '' : 'data:video/mp4;base64,';
+                return (
+                  <div key={att.id} className="relative rounded-2xl overflow-hidden glass-card max-w-md border border-white/30">
+                    <video src={pfx + att.dataBase64} controls className="w-full max-h-60 rounded-t-2xl bg-black" />
+                    <div className="flex items-center justify-between px-3 py-1.5 text-xs text-slate-400">
+                      <span className="truncate">{att.name}</span>
+                      <button onClick={() => onRemoveAttachment(att.id)} className="text-red-500 hover:underline">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (att.type === 'pdf') {
+                const pfx = att.dataBase64.startsWith('data:') ? '' : 'data:application/pdf;base64,';
+                return (
+                  <div key={att.id} className="flex items-center justify-between p-3 rounded-2xl glass-card border border-white/30 text-xs">
+                    <div className="flex items-center gap-2.5 truncate">
+                      <div className="w-8 h-8 rounded-xl bg-red-500/15 text-red-500 flex items-center justify-center">
+                        <FileCode size={16} />
+                      </div>
+                      <span className="font-semibold truncate">{att.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={pfx + att.dataBase64}
+                        download={att.name.endsWith('.pdf') ? att.name : `${att.name}.pdf`}
+                        className="flex items-center gap-1 text-blue-500 hover:underline font-semibold"
+                      >
+                        <Download size={13} />
+                        <span>Download</span>
+                      </a>
+                      <button onClick={() => onRemoveAttachment(att.id)} className="text-slate-400 hover:text-red-500 ml-2">
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                 );
               }
@@ -703,8 +1037,8 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
           </div>
         )}
 
-        {/* Main Editor: Checklist or Textarea */}
-        <div className="flex-1 px-5 py-2 flex flex-col min-h-[300px]">
+        {/* Main Editor: Checklist, Reading View, Markdown, or Textarea */}
+        <div className="flex-1 px-6 py-2 flex flex-col min-h-[350px]">
           {note.isChecklist ? (
             <div className="space-y-1.5 pb-12">
               {note.checklist.map((item, idx) => (
@@ -726,6 +1060,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                   <input
                     type="text"
                     value={item.text}
+                    readOnly={isReadingMode}
                     onChange={(e) => handleCheckItemText(item.id, e.target.value)}
                     onKeyDown={(e) => handleCheckItemKeyDown(e, idx, item)}
                     placeholder="List item..."
@@ -734,35 +1069,119 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                     }`}
                   />
 
-                  <button
-                    onClick={() => handleCheckItemRemove(item.id)}
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-none"
-                  >
-                    <X size={14} />
-                  </button>
+                  {!isReadingMode && (
+                    <button
+                      onClick={() => handleCheckItemRemove(item.id)}
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-none"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
               ))}
 
-              <button
-                onClick={() => handleCheckItemAdd()}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl text-blue-500 hover:bg-blue-500/10 text-sm font-semibold transition-colors mt-2"
-              >
-                <Plus size={16} />
-                <span>{strings.addChecklistItem}</span>
-              </button>
+              {!isReadingMode && (
+                <button
+                  onClick={() => handleCheckItemAdd()}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-blue-500 hover:bg-blue-500/10 text-sm font-semibold transition-colors mt-2"
+                >
+                  <Plus size={16} />
+                  <span>{strings.addChecklistItem}</span>
+                </button>
+              )}
             </div>
-          ) : isMarkdownPreview ? (
+          ) : isReadingMode || isMarkdownPreview ? (
             renderMarkdown(note.body)
           ) : (
             <textarea
+              ref={textareaRef}
               value={note.body}
               onChange={handleBodyChange}
               placeholder={strings.bodyPlaceholder}
-              className="w-full flex-1 bg-transparent resize-none outline-none text-sm leading-relaxed placeholder:text-slate-400 min-h-[350px]"
+              className="w-full flex-1 bg-transparent resize-none outline-none text-sm sm:text-base leading-relaxed placeholder:text-slate-400 min-h-[400px]"
             />
           )}
         </div>
       </div>
+
+      {/* Insert Table Modal */}
+      {showTableModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-xs rounded-3xl glass-panel-elevated p-5 flex flex-col gap-4 shadow-2xl border border-white/40">
+            <h4 className="font-bold text-base">Insert Table</h4>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <label className="flex flex-col gap-1">
+                <span className="font-semibold text-slate-500">Rows</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={tableRows}
+                  onChange={(e) => setTableRows(parseInt(e.target.value) || 2)}
+                  className="p-2 rounded-xl glass-field outline-none font-bold"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="font-semibold text-slate-500">Columns</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={tableCols}
+                  onChange={(e) => setTableCols(parseInt(e.target.value) || 2)}
+                  className="p-2 rounded-xl glass-field outline-none font-bold"
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <button onClick={() => setShowTableModal(false)} className="py-2 rounded-xl glass-field text-xs font-semibold">
+                Cancel
+              </button>
+              <button
+                onClick={handleInsertTable}
+                className="py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow"
+              >
+                Insert
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Insert Hyperlink Modal */}
+      {showLinkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm rounded-3xl glass-panel-elevated p-5 flex flex-col gap-3.5 shadow-2xl border border-white/40">
+            <h4 className="font-bold text-base">Insert Hyperlink</h4>
+            <input
+              type="text"
+              placeholder="Display text (e.g. Website)"
+              value={linkText}
+              onChange={(e) => setLinkText(e.target.value)}
+              className="p-2.5 rounded-xl glass-field text-xs outline-none"
+            />
+            <input
+              type="url"
+              placeholder="URL (https://...)"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              className="p-2.5 rounded-xl glass-field text-xs outline-none"
+            />
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              <button onClick={() => setShowLinkModal(false)} className="py-2 rounded-xl glass-field text-xs font-semibold">
+                Cancel
+              </button>
+              <button
+                onClick={handleInsertLink}
+                disabled={!linkUrl}
+                className="py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow disabled:opacity-50"
+              >
+                Add Link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 };

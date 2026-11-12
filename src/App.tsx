@@ -7,6 +7,10 @@ import {
   NoteColorId,
   ChecklistItem,
   NoteVersion,
+  FolderItem,
+  NoteSortOption,
+  AttachmentType,
+  NoteAttachment,
   TRANSLATIONS,
 } from './types/note';
 import {
@@ -16,6 +20,8 @@ import {
   saveSettings,
   loadRecentSearches,
   saveRecentSearches,
+  loadFolders,
+  saveFolders,
   calculateStorageBytes,
   exportFullBackupJson,
   importFullBackupJson,
@@ -25,6 +31,9 @@ import { playNotificationChime } from './utils/audio';
 import { GlassBackground } from './components/GlassBackground';
 import { DynamicIslandSavePill } from './components/DynamicIslandSavePill';
 import { UndoToastBar } from './components/UndoToastBar';
+import { FolderSidebar } from './components/FolderSidebar';
+import { FolderManagerModal } from './components/FolderManagerModal';
+import { DocumentScannerModal } from './components/DocumentScannerModal';
 import { NoteListPane } from './components/NoteListPane';
 import { NoteEditorPane } from './components/NoteEditorPane';
 import { SettingsScreen } from './components/SettingsScreen';
@@ -38,6 +47,7 @@ import { NoteContextSheet } from './components/NoteContextSheet';
 
 export const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>(() => loadNotes());
+  const [folders, setFolders] = useState<FolderItem[]>(() => loadFolders());
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [recentSearches, setRecentSearches] = useState<string[]>(() => loadRecentSearches());
 
@@ -46,6 +56,26 @@ export const App: React.FC = () => {
     const activeNotes = list.filter((n) => !n.isTrashed && !n.isArchived);
     return activeNotes.length > 0 ? activeNotes[0].id : null;
   });
+
+  // Folder & Organization state
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedSmartFolder, setSelectedSmartFolder] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<NoteSortOption>('updated');
+  const [isFolderSidebarOpen, setIsFolderSidebarOpen] = useState(true);
+
+  // Folder Manager Modal state
+  const [folderModalData, setFolderModalData] = useState<{
+    isOpen: boolean;
+    existingFolder?: FolderItem | null;
+    parentId?: string | null;
+  }>({
+    isOpen: false,
+    existingFolder: null,
+    parentId: null,
+  });
+
+  // Document Scanner Modal state
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
@@ -68,7 +98,7 @@ export const App: React.FC = () => {
 
   // Modal Dialogs
   const [contextMenuNote, setContextMenuNote] = useState<Note | null>(null);
-  const [isQuickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
+  const [quickCaptureOpen, setIsQuickCaptureOpen] = useState(false);
   const [isVoiceRecorderOpen, setIsVoiceRecorderOpen] = useState(false);
   const [isDrawingCanvasOpen, setIsDrawingCanvasOpen] = useState(false);
   const [photoCropBase64, setPhotoCropBase64] = useState<string | null>(null);
@@ -76,7 +106,6 @@ export const App: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const saveTimerRef = useRef<number | null>(null);
-  const snapshotTimerRef = useRef<number | null>(null);
 
   const strings = TRANSLATIONS[settings.language] || TRANSLATIONS.en;
   const isKhmer = settings.language === 'km';
@@ -139,6 +168,12 @@ export const App: React.FC = () => {
     }, 350);
   };
 
+  // Persist Folders helper
+  const persistFolders = (nextFolders: FolderItem[]) => {
+    setFolders(nextFolders);
+    saveFolders(nextFolders);
+  };
+
   // Auto-snapshot versions every snapshotIntervalSec
   useEffect(() => {
     const intervalMs = Math.max(10, settings.snapshotIntervalSec) * 1000;
@@ -147,8 +182,7 @@ export const App: React.FC = () => {
         let changed = false;
         const now = Date.now();
         const updated = currentNotes.map((note) => {
-          if (note.isTrashed || !note.title.trim() && !note.body.trim()) return note;
-          // If edited recently and no snapshot within 30s
+          if (note.isTrashed || (!note.title.trim() && !note.body.trim())) return note;
           const lastSnapshotTime = note.versions[0]?.timestamp || 0;
           if (now - note.updatedAt < intervalMs && now - lastSnapshotTime > intervalMs) {
             changed = true;
@@ -206,7 +240,12 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [strings]);
 
-  // Derived filtered notes
+  // Active folder object lookup
+  const activeFolderObj = useMemo(() => {
+    return folders.find((f) => f.id === selectedFolderId) || null;
+  }, [folders, selectedFolderId]);
+
+  // Derived filtered & sorted notes
   const filteredNotes = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const now = Date.now();
@@ -225,6 +264,31 @@ export const App: React.FC = () => {
             if (activeTab === 'pinned' && !n.isPinned) return false;
             if (activeTab === 'checklists' && !n.isChecklist) return false;
           }
+        }
+
+        // Selected Folder filtering
+        if (activeFolderObj) {
+          // Match note.folder with folder name or any of its subfolders
+          const matchSubfolders = folders
+            .filter((f) => f.parentId === activeFolderObj.id)
+            .map((f) => f.name.toLowerCase());
+          const allowedNames = [activeFolderObj.name.toLowerCase(), ...matchSubfolders];
+          if (!allowedNames.includes(n.folder.toLowerCase())) {
+            return false;
+          }
+        }
+
+        // Smart Folder filtering
+        if (selectedSmartFolder) {
+          if (selectedSmartFolder === 'pinned' && !n.isPinned) return false;
+          if (selectedSmartFolder === 'checklists' && !n.isChecklist) return false;
+          if (selectedSmartFolder === 'recent' && now - n.updatedAt > 7 * 86400000) return false;
+          if (
+            selectedSmartFolder === 'scans' &&
+            !n.attachments.some((a) => a.type === 'scan' || a.type === 'pdf')
+          )
+            return false;
+          if (selectedSmartFolder === 'reminders' && (!n.reminderAt || n.reminderFired)) return false;
         }
 
         // Advanced filter - type
@@ -269,19 +333,34 @@ export const App: React.FC = () => {
         return true;
       })
       .sort((a, b) => {
+        // Keep pinned notes prioritized
         if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+
+        if (sortBy === 'created') {
+          return b.createdAt - a.createdAt;
+        }
+        if (sortBy === 'nameAsc') {
+          return (a.title || 'Untitled').localeCompare(b.title || 'Untitled');
+        }
+        if (sortBy === 'nameDesc') {
+          return (b.title || 'Untitled').localeCompare(a.title || 'Untitled');
+        }
+        // Default: recently modified
         return b.updatedAt - a.updatedAt;
       });
-  }, [notes, searchQuery, activeTab, searchFilters]);
+  }, [notes, searchQuery, activeTab, selectedFolderId, selectedSmartFolder, activeFolderObj, folders, searchFilters, sortBy]);
 
-  // All distinct folders
-  const allFolders = useMemo(() => {
+  // All distinct folder names across notes
+  const allFolderNames = useMemo(() => {
     const set = new Set<string>();
+    folders.forEach((f) => {
+      if (!f.isTrashed) set.add(f.name);
+    });
     notes.forEach((n) => {
       if (n.folder.trim()) set.add(n.folder.trim());
     });
     return Array.from(set).sort();
-  }, [notes]);
+  }, [folders, notes]);
 
   // Currently selected note
   const selectedNote = useMemo(() => {
@@ -289,8 +368,10 @@ export const App: React.FC = () => {
   }, [notes, selectedNoteId]);
 
   // Note CRUD actions
-  const handleCreateNote = () => {
+  const handleCreateNote = (targetFolderName?: string) => {
     const now = Date.now();
+    const folderToUse = targetFolderName || activeFolderObj?.name || '';
+
     const newNote: Note = {
       id: `n_${now}_${Math.random().toString(36).slice(2, 6)}`,
       title: '',
@@ -302,7 +383,7 @@ export const App: React.FC = () => {
       isArchived: false,
       isTrashed: false,
       tags: [],
-      folder: '',
+      folder: folderToUse,
       attachments: [],
       versions: [],
       activityLog: [{ id: `l_${now}`, timestamp: now, action: 'created' }],
@@ -332,7 +413,7 @@ export const App: React.FC = () => {
       isArchived: false,
       isTrashed: false,
       tags: ['quick-capture'],
-      folder: '',
+      folder: activeFolderObj?.name || '',
       attachments: [],
       versions: [],
       activityLog: [{ id: `l_${now}`, timestamp: now, action: 'created' }],
@@ -408,7 +489,6 @@ export const App: React.FC = () => {
         setIsEditorOpenOnMobile(false);
       }
       showToast('Note moved to Trash', () => {
-        // Undo function
         const restored = notes.map((n) => (n.id === noteId ? { ...n, isTrashed: false, trashedAt: null } : n));
         persistNotes(restored);
         setSelectedNoteId(noteId);
@@ -471,20 +551,25 @@ export const App: React.FC = () => {
   };
 
   const handleAddAttachment = (
-    type: 'voice' | 'image' | 'scan' | 'drawing',
+    type: AttachmentType,
     name: string,
     dataBase64: string,
-    durationSec?: number
+    durationSec?: number,
+    extra?: any
   ) => {
     if (!selectedNoteId) return;
     const now = Date.now();
-    const newAtt = {
+    const newAtt: NoteAttachment = {
       id: `att_${now}_${Math.random().toString(36).slice(2, 6)}`,
       type,
       name,
       dataBase64,
       durationSec,
       createdAt: now,
+      pages: extra?.pages,
+      pdfDataUri: extra?.pdfDataUri,
+      ocrText: extra?.ocrText,
+      fileSize: extra?.fileSize,
     };
 
     const next = notes.map((n) =>
@@ -558,6 +643,157 @@ export const App: React.FC = () => {
     }
   };
 
+  // Folder Management CRUD handlers
+  const handleOpenCreateFolderModal = (parentId?: string | null) => {
+    setFolderModalData({
+      isOpen: true,
+      existingFolder: null,
+      parentId: parentId || null,
+    });
+  };
+
+  const handleOpenEditFolderModal = (folder: FolderItem) => {
+    setFolderModalData({
+      isOpen: true,
+      existingFolder: folder,
+      parentId: folder.parentId,
+    });
+  };
+
+  const handleSaveFolder = (data: {
+    id?: string;
+    name: string;
+    parentId: string | null;
+    color: string;
+    icon: string;
+  }) => {
+    const now = Date.now();
+    if (data.id) {
+      // Update folder
+      const updated = folders.map((f) =>
+        f.id === data.id
+          ? {
+              ...f,
+              name: data.name,
+              parentId: data.parentId,
+              color: data.color,
+              icon: data.icon,
+              updatedAt: now,
+            }
+          : f
+      );
+      persistFolders(updated);
+      showToast('Folder updated');
+    } else {
+      // Create new folder
+      const newFolder: FolderItem = {
+        id: `f_${now}_${Math.random().toString(36).slice(2, 6)}`,
+        name: data.name,
+        parentId: data.parentId,
+        color: data.color,
+        icon: data.icon,
+        isPinned: false,
+        isArchived: false,
+        isTrashed: false,
+        createdAt: now,
+        updatedAt: now,
+        order: folders.length,
+      };
+      persistFolders([...folders, newFolder]);
+      showToast('Folder created');
+    }
+    setFolderModalData({ isOpen: false, existingFolder: null, parentId: null });
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+    const target = folders.find((f) => f.id === folderId);
+    if (!target) return;
+
+    if (target.isTrashed) {
+      // Permanent delete
+      persistFolders(folders.filter((f) => f.id !== folderId));
+      if (selectedFolderId === folderId) setSelectedFolderId(null);
+      showToast('Folder permanently deleted');
+    } else {
+      // Soft trash
+      const updated = folders.map((f) => (f.id === folderId ? { ...f, isTrashed: true, trashedAt: Date.now() } : f));
+      persistFolders(updated);
+      if (selectedFolderId === folderId) setSelectedFolderId(null);
+      showToast('Folder moved to Trash', () => {
+        const restored = folders.map((f) => (f.id === folderId ? { ...f, isTrashed: false, trashedAt: null } : f));
+        persistFolders(restored);
+      });
+    }
+  };
+
+  const handleTogglePinFolder = (folderId: string) => {
+    const updated = folders.map((f) => (f.id === folderId ? { ...f, isPinned: !f.isPinned, updatedAt: Date.now() } : f));
+    persistFolders(updated);
+  };
+
+  const handleToggleArchiveFolder = (folderId: string) => {
+    const updated = folders.map((f) =>
+      f.id === folderId ? { ...f, isArchived: !f.isArchived, updatedAt: Date.now() } : f
+    );
+    persistFolders(updated);
+    showToast('Folder archive status updated');
+  };
+
+  const handleRestoreFolder = (folderId: string) => {
+    const updated = folders.map((f) =>
+      f.id === folderId ? { ...f, isTrashed: false, isArchived: false, trashedAt: null, updatedAt: Date.now() } : f
+    );
+    persistFolders(updated);
+    showToast('Folder restored');
+  };
+
+  // Document Scanner Save Handler
+  const handleSaveScanToNote = (scanData: {
+    title: string;
+    folder: string;
+    pages: string[];
+    pdfDataUri: string;
+    extractedText: string;
+  }) => {
+    const now = Date.now();
+    const scanAttachment: NoteAttachment = {
+      id: `att_scan_${now}`,
+      type: 'scan',
+      name: `${scanData.title || 'Scanned Document'}.pdf`,
+      dataBase64: scanData.pages[0] || '',
+      pages: scanData.pages,
+      pdfDataUri: scanData.pdfDataUri,
+      ocrText: scanData.extractedText,
+      createdAt: now,
+    };
+
+    const newNote: Note = {
+      id: `n_${now}_${Math.random().toString(36).slice(2, 6)}`,
+      title: scanData.title || 'Scanned Document',
+      body: scanData.extractedText
+        ? scanData.extractedText
+        : `Scanned document with ${scanData.pages.length} page(s). PDF export generated.`,
+      isChecklist: false,
+      checklist: [],
+      color: settings.accent,
+      isPinned: false,
+      isArchived: false,
+      isTrashed: false,
+      tags: ['scan', 'document'],
+      folder: scanData.folder || activeFolderObj?.name || '',
+      attachments: [scanAttachment],
+      versions: [],
+      activityLog: [{ id: `l_${now}`, timestamp: now, action: 'created from document scanner' }],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    persistNotes([newNote, ...notes]);
+    setSelectedNoteId(newNote.id);
+    setIsEditorOpenOnMobile(true);
+    showToast(`Saved scan with ${scanData.pages.length} page(s)`);
+  };
+
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const isDark = settings.theme === 'dark' || (settings.theme === 'system' && prefersDark);
 
@@ -594,12 +830,13 @@ export const App: React.FC = () => {
           onBack={() => setIsSettingsOpen(false)}
           onUpdateSettings={updateSettings}
           onEmptyTrash={handleEmptyTrash}
-          onExportBackupJson={() => exportFullBackupJson(notes, settings, recentSearches)}
+          onExportBackupJson={() => exportFullBackupJson(notes, settings, recentSearches, folders)}
           onImportBackupJson={(json) => {
             const res = importFullBackupJson(json);
             if (res) {
               setNotes(res.notes);
               setSettings(res.settings);
+              if (res.folders) setFolders(res.folders);
               return true;
             }
             return false;
@@ -607,9 +844,39 @@ export const App: React.FC = () => {
           onShowToast={showToast}
         />
       ) : (
-        /* Main Two-Pane or Mobile Slide Responsive View */
+        /* Main 3-Pane or 2-Pane Responsive View */
         <div className="relative flex-1 flex gap-3 min-h-0 w-full overflow-hidden">
-          {/* Note List Sidebar (Hidden on mobile if editor is active) */}
+          {/* Column 1: Collapsible Folder & Smart Views Sidebar */}
+          {isFolderSidebarOpen && (
+            <div
+              className={`w-64 flex-none h-full transition-all duration-300 glass-panel rounded-3xl z-20 ${
+                isEditorOpenOnMobile ? 'hidden' : 'hidden lg:flex'
+              }`}
+            >
+              <FolderSidebar
+                folders={folders}
+                notes={notes}
+                selectedFolderId={selectedFolderId}
+                selectedSmartFolder={selectedSmartFolder}
+                onSelectFolder={(fId) => {
+                  setSelectedFolderId(fId);
+                  setSelectedSmartFolder(null);
+                }}
+                onSelectSmartFolder={(smartId) => {
+                  setSelectedSmartFolder(smartId);
+                  setSelectedFolderId(null);
+                }}
+                onCreateFolder={handleOpenCreateFolderModal}
+                onEditFolder={handleOpenEditFolderModal}
+                onDeleteFolder={handleDeleteFolder}
+                onTogglePinFolder={handleTogglePinFolder}
+                onToggleArchiveFolder={handleToggleArchiveFolder}
+                onRestoreFolder={handleRestoreFolder}
+              />
+            </div>
+          )}
+
+          {/* Column 2: Note List Pane */}
           <div
             className={`w-full md:w-[380px] md:flex-none h-full transition-all duration-300 ${
               isEditorOpenOnMobile ? 'hidden md:flex' : 'flex'
@@ -618,16 +885,21 @@ export const App: React.FC = () => {
             <NoteListPane
               notes={filteredNotes}
               recentNotes={notes.slice(0, 5)}
-              allFolders={allFolders}
+              allFolders={allFolderNames}
+              folders={folders}
+              selectedFolderId={selectedFolderId}
+              selectedSmartFolder={selectedSmartFolder}
               selectedNoteId={selectedNoteId}
               searchQuery={searchQuery}
               recentSearches={recentSearches}
               activeTab={activeTab}
               showFilterRow={showFilterRow}
               searchFilters={searchFilters}
+              sortBy={sortBy}
               hidePreviews={settings.hidePreviews}
               isDark={isDark}
               strings={strings}
+              isFolderSidebarOpen={isFolderSidebarOpen}
               onSearchQueryChange={setSearchQuery}
               onCommitSearch={handleCommitSearch}
               onSelectTab={(tab) => {
@@ -645,11 +917,26 @@ export const App: React.FC = () => {
               }}
               onToggleFilterRow={() => setShowFilterRow((v) => !v)}
               onUpdateFilters={(partial) => setSearchFilters((prev) => ({ ...prev, ...partial }))}
+              onSortByChange={setSortBy}
+              onSelectFolder={(fId) => {
+                setSelectedFolderId(fId);
+                setSelectedSmartFolder(null);
+              }}
+              onSelectSmartFolder={(sId) => {
+                setSelectedSmartFolder(sId);
+                setSelectedFolderId(null);
+              }}
+              onClearFolderFilter={() => {
+                setSelectedFolderId(null);
+                setSelectedSmartFolder(null);
+              }}
+              onToggleFolderSidebar={() => setIsFolderSidebarOpen((v) => !v)}
               onSelectNote={(noteId) => {
                 setSelectedNoteId(noteId);
                 setIsEditorOpenOnMobile(true);
               }}
-              onCreateNote={handleCreateNote}
+              onCreateNote={() => handleCreateNote()}
+              onOpenScanner={() => setIsScannerOpen(true)}
               onQuickCapture={() => setIsQuickCaptureOpen(true)}
               onToggleTheme={toggleTheme}
               onOpenSettings={() => setIsSettingsOpen(true)}
@@ -658,7 +945,7 @@ export const App: React.FC = () => {
             />
           </div>
 
-          {/* Note Editor Pane (Hidden on mobile if editor is closed) */}
+          {/* Column 3: Advanced Note Editor Pane */}
           <div
             className={`flex-1 h-full min-w-0 transition-all duration-300 ${
               isEditorOpenOnMobile ? 'flex' : 'hidden md:flex'
@@ -666,6 +953,7 @@ export const App: React.FC = () => {
           >
             <NoteEditorPane
               note={selectedNote}
+              folders={folders}
               showBackButton={isEditorOpenOnMobile}
               isMarkdownPreview={isMarkdownPreview}
               strings={strings}
@@ -682,16 +970,40 @@ export const App: React.FC = () => {
               onOpenReminderDialog={() => setIsReminderPickerOpen(true)}
               onOpenVoiceRecorder={() => setIsVoiceRecorderOpen(true)}
               onOpenImageUpload={() => {
-                // Handled via file input inside NoteEditorPane
+                // Handled in NoteEditorPane file trigger
               }}
               onOpenPhotoCrop={(b64) => setPhotoCropBase64(b64)}
               onOpenDrawingCanvas={() => setIsDrawingCanvasOpen(true)}
+              onOpenScanner={() => setIsScannerOpen(true)}
               onOpenHistory={() => setIsHistoryOpen(true)}
               onRemoveAttachment={handleRemoveAttachment}
+              onAddAttachment={handleAddAttachment}
               onShowToast={showToast}
             />
           </div>
         </div>
+      )}
+
+      {/* Document Scanner Modal */}
+      {isScannerOpen && (
+        <DocumentScannerModal
+          folders={folders}
+          defaultFolder={activeFolderObj?.name || ''}
+          onDismiss={() => setIsScannerOpen(false)}
+          onSaveScanToNote={handleSaveScanToNote}
+          onShowToast={showToast}
+        />
+      )}
+
+      {/* Folder Manager Modal (Create/Edit Folder) */}
+      {folderModalData.isOpen && (
+        <FolderManagerModal
+          existingFolder={folderModalData.existingFolder}
+          parentFolderId={folderModalData.parentId}
+          allFolders={folders}
+          onDismiss={() => setFolderModalData({ isOpen: false })}
+          onSave={handleSaveFolder}
+        />
       )}
 
       {/* Context Bottom Sheet Modal */}
@@ -709,7 +1021,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Quick Capture Dialog */}
-      {isQuickCaptureOpen && (
+      {quickCaptureOpen && (
         <QuickCaptureDialog
           strings={strings}
           onDismiss={() => setIsQuickCaptureOpen(false)}

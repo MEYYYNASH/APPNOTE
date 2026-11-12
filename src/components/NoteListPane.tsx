@@ -8,6 +8,8 @@ import {
   TypeFilter,
   DateRangeFilter,
   DateModeFilter,
+  FolderItem,
+  NoteSortOption,
 } from '../types/note';
 import { AppGlassLogo } from './AppGlassLogo';
 import {
@@ -29,28 +31,46 @@ import {
   Image as ImageIcon,
   PenTool,
   Clock,
+  Camera,
+  ArrowUpDown,
+  FolderTree,
+  FileText,
+  Calendar,
+  Sparkles,
+  ChevronDown,
 } from 'lucide-react';
 
 interface NoteListPaneProps {
   notes: Note[];
   recentNotes: Note[];
   allFolders: string[];
+  folders: FolderItem[];
+  selectedFolderId: string | null;
+  selectedSmartFolder: string | null;
   selectedNoteId: string | null;
   searchQuery: string;
   recentSearches: string[];
   activeTab: FilterTab;
   showFilterRow: boolean;
   searchFilters: SearchFilters;
+  sortBy: NoteSortOption;
   hidePreviews: boolean;
   isDark: boolean;
   strings: AppStrings;
+  isFolderSidebarOpen: boolean;
   onSearchQueryChange: (query: string) => void;
   onCommitSearch: (query: string) => void;
   onSelectTab: (tab: FilterTab) => void;
   onToggleFilterRow: () => void;
   onUpdateFilters: (filters: Partial<SearchFilters>) => void;
+  onSortByChange: (sort: NoteSortOption) => void;
+  onSelectFolder: (folderId: string | null) => void;
+  onSelectSmartFolder: (smartId: string) => void;
+  onClearFolderFilter: () => void;
+  onToggleFolderSidebar: () => void;
   onSelectNote: (noteId: string) => void;
   onCreateNote: () => void;
+  onOpenScanner: () => void;
   onQuickCapture: () => void;
   onToggleTheme: () => void;
   onOpenSettings: () => void;
@@ -62,22 +82,33 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
   notes,
   recentNotes,
   allFolders,
+  folders,
+  selectedFolderId,
+  selectedSmartFolder,
   selectedNoteId,
   searchQuery,
   recentSearches,
   activeTab,
   showFilterRow,
   searchFilters,
+  sortBy,
   hidePreviews,
   isDark,
   strings,
+  isFolderSidebarOpen,
   onSearchQueryChange,
   onCommitSearch,
   onSelectTab,
   onToggleFilterRow,
   onUpdateFilters,
+  onSortByChange,
+  onSelectFolder,
+  onSelectSmartFolder,
+  onClearFolderFilter,
+  onToggleFolderSidebar,
   onSelectNote,
   onCreateNote,
+  onOpenScanner,
   onQuickCapture,
   onToggleTheme,
   onOpenSettings,
@@ -103,30 +134,61 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
     return clean.slice(0, 85) || 'No text yet';
   };
 
+  // Find active folder details if selected
+  const activeFolder = selectedFolderId
+    ? folders.find((f) => f.id === selectedFolderId)
+    : null;
+
   return (
-    <aside className="relative flex flex-col h-full overflow-hidden glass-panel rounded-3xl z-10">
+    <aside className="relative flex flex-col h-full overflow-hidden glass-panel rounded-3xl z-10 w-full">
       {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2 gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <AppGlassLogo size={32} />
-          <h1 className="text-2xl font-bold tracking-tight truncate">{strings.appTitle}</h1>
+      <div className="flex items-center justify-between px-4 pt-3.5 pb-2 gap-2 flex-none">
+        <div className="flex items-center gap-2 min-w-0">
+          {/* Folders toggle button */}
+          <button
+            onClick={onToggleFolderSidebar}
+            title={isFolderSidebarOpen ? 'Hide folders' : 'Show folders'}
+            className={`w-9 h-9 rounded-2xl flex items-center justify-center transition-all ${
+              isFolderSidebarOpen
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'glass-field text-slate-600 dark:text-slate-300 hover:opacity-100'
+            }`}
+          >
+            <FolderTree size={17} />
+          </button>
+
+          <div className="flex items-center gap-2 min-w-0">
+            <AppGlassLogo size={28} />
+            <h1 className="text-xl font-bold tracking-tight truncate hidden sm:block">
+              {strings.appTitle}
+            </h1>
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5 flex-none">
+          {/* Document Scanner Launcher */}
+          <button
+            onClick={onOpenScanner}
+            title="Scan Document (Camera / PDF / OCR)"
+            className="w-9 h-9 rounded-2xl glass-field flex items-center justify-center text-pink-500 hover:bg-pink-500/10 active:scale-95 transition-all"
+          >
+            <Camera size={17} />
+          </button>
+
           {/* Quick Capture */}
           <button
             onClick={onQuickCapture}
             title={strings.quickCapture}
-            className="w-9 h-9 rounded-full glass-field flex items-center justify-center text-amber-500 hover:bg-amber-500/10 active:scale-95 transition-all"
+            className="w-9 h-9 rounded-2xl glass-field flex items-center justify-center text-amber-500 hover:bg-amber-500/10 active:scale-95 transition-all"
           >
-            <Zap size={18} className="fill-amber-500" />
+            <Zap size={17} className="fill-amber-500" />
           </button>
 
           {/* Quick Theme Toggle */}
           <button
             onClick={onToggleTheme}
             title="Switch theme"
-            className="w-9 h-9 rounded-full glass-field flex items-center justify-center hover:opacity-85 active:scale-95 transition-all"
+            className="w-9 h-9 rounded-2xl glass-field flex items-center justify-center hover:opacity-85 active:scale-95 transition-all"
           >
             {isDark ? <Sun size={17} className="text-amber-400" /> : <Moon size={17} />}
           </button>
@@ -135,17 +197,49 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
           <button
             onClick={onOpenSettings}
             title={strings.settingsTitle}
-            className="w-9 h-9 rounded-full glass-field flex items-center justify-center hover:opacity-85 active:scale-95 transition-all"
+            className="w-9 h-9 rounded-2xl glass-field flex items-center justify-center hover:opacity-85 active:scale-95 transition-all"
           >
             <SettingsIcon size={17} />
           </button>
         </div>
       </div>
 
+      {/* Active Folder Banner (if filtering by folder or smart folder) */}
+      {(activeFolder || selectedSmartFolder) && (
+        <div className="mx-4 mb-1 px-3 py-1.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-between text-xs animate-in fade-in flex-none">
+          <div className="flex items-center gap-2 truncate">
+            {activeFolder ? (
+              <>
+                <span
+                  style={{ backgroundColor: activeFolder.color }}
+                  className="w-2.5 h-2.5 rounded-full flex-none"
+                />
+                <span className="font-bold text-blue-600 dark:text-blue-400 truncate">
+                  Folder: {activeFolder.name}
+                </span>
+              </>
+            ) : (
+              <span className="font-bold text-blue-600 dark:text-blue-400 capitalize">
+                Smart View: {selectedSmartFolder}
+              </span>
+            )}
+            <span className="text-[11px] text-slate-400">({notes.length} notes)</span>
+          </div>
+
+          <button
+            onClick={onClearFolderFilter}
+            className="w-5 h-5 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 flex-none"
+            title="Clear folder filter"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Search Bar */}
-      <div className="px-4 py-1.5">
-        <div className="flex items-center gap-2 px-3 h-11 rounded-2xl glass-field border border-white/30 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
-          <Search size={17} className="text-slate-400 flex-none" />
+      <div className="px-4 py-1.5 flex-none">
+        <div className="flex items-center gap-2 px-3 h-10 rounded-2xl glass-field border border-white/30 focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+          <Search size={16} className="text-slate-400 flex-none" />
           <input
             type="search"
             value={searchQuery}
@@ -156,14 +250,14 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
               }
             }}
             placeholder={strings.searchPlaceholder}
-            className="flex-1 bg-transparent border-0 outline-none text-sm placeholder:text-slate-400 min-w-0"
+            className="flex-1 bg-transparent border-0 outline-none text-xs sm:text-sm placeholder:text-slate-400 min-w-0"
           />
           {searchQuery && (
             <button
               onClick={() => onSearchQueryChange('')}
               className="text-slate-400 hover:text-slate-600 flex-none"
             >
-              <X size={15} />
+              <X size={14} />
             </button>
           )}
           <button
@@ -182,13 +276,13 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
 
       {/* Recent Searches Chips */}
       {recentSearches.length > 0 && !searchQuery && (
-        <div className="flex items-center gap-1.5 px-4 py-1 overflow-x-auto scrollbar-none text-xs">
-          <span className="text-slate-400 flex-none mr-0.5">{strings.recentTitle}:</span>
+        <div className="flex items-center gap-1.5 px-4 py-1 overflow-x-auto scrollbar-none text-xs flex-none">
+          <span className="text-slate-400 flex-none mr-0.5 text-[11px]">{strings.recentTitle}:</span>
           {recentSearches.map((s, idx) => (
             <button
               key={idx}
               onClick={() => onSearchQueryChange(s)}
-              className="flex-none px-2.5 py-1 rounded-full glass-card hover:border-blue-400 text-slate-600 dark:text-slate-300 transition-all text-xs max-w-[120px] truncate"
+              className="flex-none px-2.5 py-0.5 rounded-full glass-card hover:border-blue-400 text-slate-600 dark:text-slate-300 transition-all text-[11px] max-w-[120px] truncate"
             >
               {s}
             </button>
@@ -198,7 +292,7 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
 
       {/* Advanced Filters Expandable Bar */}
       {showFilterRow && (
-        <div className="mx-4 mb-2 p-2.5 rounded-2xl glass-field flex flex-wrap gap-2 text-xs border border-white/20 animate-in fade-in slide-in-from-top-2">
+        <div className="mx-4 mb-2 p-2.5 rounded-2xl glass-field flex flex-wrap gap-2 text-xs border border-white/20 animate-in fade-in slide-in-from-top-2 flex-none">
           {/* Type Filter */}
           <select
             value={searchFilters.type}
@@ -252,37 +346,55 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
         </div>
       )}
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2 px-4 py-1.5 overflow-x-auto scrollbar-none flex-none">
-        {(
-          [
-            { id: 'all', label: strings.tabAll },
-            { id: 'pinned', label: strings.tabPinned },
-            { id: 'checklists', label: strings.tabChecklists },
-            { id: 'archive', label: strings.tabArchive },
-            { id: 'trash', label: strings.tabTrash },
-          ] as { id: FilterTab; label: string }[]
-        ).map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onSelectTab(tab.id)}
-              className={`flex-none px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                isActive
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm scale-105'
-                  : 'glass-field hover:opacity-100 opacity-75'
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+      {/* Filter Tabs and Sort Selector Row */}
+      <div className="flex items-center justify-between px-4 py-1.5 flex-none gap-2">
+        {/* Filter Tabs */}
+        <div className="flex gap-1.5 overflow-x-auto scrollbar-none flex-1 min-w-0">
+          {(
+            [
+              { id: 'all', label: strings.tabAll },
+              { id: 'pinned', label: strings.tabPinned },
+              { id: 'checklists', label: strings.tabChecklists },
+              { id: 'archive', label: strings.tabArchive },
+              { id: 'trash', label: strings.tabTrash },
+            ] as { id: FilterTab; label: string }[]
+          ).map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onSelectTab(tab.id)}
+                className={`flex-none px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                  isActive
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm scale-105'
+                    : 'glass-field hover:opacity-100 opacity-75'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Sort Selector */}
+        <div className="flex items-center gap-1 flex-none">
+          <select
+            value={sortBy}
+            onChange={(e) => onSortByChange(e.target.value as NoteSortOption)}
+            className="px-2 py-1 rounded-xl glass-field text-[11px] font-medium outline-none cursor-pointer"
+            title="Sort notes"
+          >
+            <option value="updated">Recently Modified</option>
+            <option value="created">Date Created</option>
+            <option value="nameAsc">Name (A-Z)</option>
+            <option value="nameDesc">Name (Z-A)</option>
+          </select>
+        </div>
       </div>
 
       {/* Trash Banner if Trash Tab is Active */}
       {activeTab === 'trash' && (
-        <div className="mx-4 my-2 px-3 py-2 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-between text-xs text-red-500">
+        <div className="mx-4 my-2 px-3 py-2 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-between text-xs text-red-500 flex-none">
           <span>{strings.trashBanner}</span>
           <button
             onClick={onEmptyTrash}
@@ -294,16 +406,19 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
       )}
 
       {/* Notes List */}
-      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 pb-24">
+      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 pb-24 scrollbar-none">
         {notes.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 text-sm">
-            {searchQuery || activeTab !== 'all' ? 'Nothing matches yet.' : strings.emptyNotesHint}
+          <div className="py-16 text-center text-slate-400 text-xs sm:text-sm">
+            {searchQuery || activeTab !== 'all' || selectedFolderId || selectedSmartFolder
+              ? 'No matching notes found.'
+              : strings.emptyNotesHint}
           </div>
         ) : (
           notes.map((note) => {
             const isSelected = note.id === selectedNoteId;
             const colorConf = NOTE_COLORS[note.color] || NOTE_COLORS.blue;
             const preview = getNotePreview(note);
+            const folderObj = folders.find((f) => f.name.toLowerCase() === note.folder.toLowerCase());
 
             return (
               <div
@@ -362,10 +477,16 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
                       {strings.checklistTag}
                     </span>
                   )}
+                  {note.attachments.some((a) => a.type === 'scan' || a.type === 'pdf') && (
+                    <span className="flex items-center gap-0.5 text-pink-500 font-semibold text-[10px]">
+                      <Camera size={11} />
+                      Scan
+                    </span>
+                  )}
                   {note.attachments.some((a) => a.type === 'voice') && (
                     <Volume2 size={11} className="text-blue-400" />
                   )}
-                  {note.attachments.some((a) => a.type === 'image' || a.type === 'scan') && (
+                  {note.attachments.some((a) => a.type === 'image') && (
                     <ImageIcon size={11} className="text-indigo-400" />
                   )}
                   {note.attachments.some((a) => a.type === 'drawing') && (
@@ -375,9 +496,12 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
                     <Clock size={11} className="text-amber-400" />
                   )}
                   {note.folder && (
-                    <span className="flex items-center gap-0.5 text-[10px] text-slate-500 dark:text-slate-300 ml-auto truncate max-w-[90px]">
+                    <span
+                      style={{ color: folderObj?.color }}
+                      className="flex items-center gap-1 text-[10px] ml-auto truncate max-w-[110px] px-1.5 py-0.5 rounded-md glass-field font-semibold"
+                    >
                       <Folder size={10} />
-                      {note.folder}
+                      <span className="truncate">{note.folder}</span>
                     </span>
                   )}
                 </div>
@@ -391,9 +515,9 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
       <button
         onClick={onCreateNote}
         title={strings.newNote}
-        className="absolute right-5 bottom-5 w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-blue-500/30 hover:scale-105 active:scale-95 transition-all group z-20"
+        className="absolute right-5 bottom-5 w-13 h-13 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-blue-500/30 hover:scale-105 active:scale-95 transition-all group z-20"
       >
-        <Plus size={26} className="group-hover:rotate-90 transition-transform duration-300" />
+        <Plus size={24} className="group-hover:rotate-90 transition-transform duration-300" />
       </button>
     </aside>
   );
