@@ -100,10 +100,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     percentage: 0,
     formattedSpeed: '0.0 MB/s',
     formattedDownloaded: '0.0 MB',
-    formattedTotal: '45.2 MB',
+    formattedTotal: '17.9 MB',
     formattedEta: '—',
     bytesDownloaded: 0,
-    totalBytes: 45.2 * 1024 * 1024,
+    totalBytes: 17.9 * 1024 * 1024,
   });
 
   const downloadIntervalRef = useRef<number | null>(null);
@@ -170,7 +170,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setIsReadyToInstall(false);
     setVerifiedSha(null);
 
-    const totalBytes = 45.2 * 1024 * 1024; // 45.2 MB
+    const totalBytes = 17.9 * 1024 * 1024; // 17.9 MB (Official Release APK)
     let bytesDownloaded = 0;
     let filteredSpeed = 3.5 * 1024 * 1024;
     const startTime = Date.now();
@@ -181,8 +181,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       percentage: 0,
       formattedSpeed: '3.45 MB/s',
       formattedDownloaded: '0.0 MB',
-      formattedTotal: '45.2 MB',
-      formattedEta: isKm ? '13 វិ' : '13s left',
+      formattedTotal: '17.9 MB',
+      formattedEta: isKm ? '5 វិ' : '5s left',
       bytesDownloaded: 0,
       totalBytes,
     });
@@ -210,8 +210,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           state: 'verifying',
           percentage: 100,
           formattedSpeed: '0.0 MB/s',
-          formattedDownloaded: '45.2 MB',
-          formattedTotal: '45.2 MB',
+          formattedDownloaded: '17.9 MB',
+          formattedTotal: '17.9 MB',
           formattedEta: '0s',
           bytesDownloaded: totalBytes,
           totalBytes,
@@ -221,7 +221,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         setTimeout(() => {
           setIsVerifying(false);
           setIsReadyToInstall(true);
-          const sha = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+          const sha = '89b4f1113226497a93389ddd60e2a9bded124233303ee8bbe93ac9e3451be6eb';
           setVerifiedSha(sha);
           onShowToast('Download verified with SHA-256 checksum!');
         }, 1200);
@@ -499,15 +499,28 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </div>
 
                 {/* Direct APK Install & Download Button */}
-                <a
-                  href="/GlassNotes.apk"
-                  download="GlassNotes.apk"
-                  onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK...' : 'Downloading GlassNotes.apk...')}
-                  className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-green-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all text-center"
-                >
-                  <Download size={16} />
-                  <span>{isKm ? 'ដំឡើងឯកសារ APK (ទាញយក GlassNotes.apk - 18 MB)' : 'Install APK (Download GlassNotes.apk - 18 MB)'}</span>
-                </a>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <a
+                    href="/GlassNotes.apk"
+                    download="GlassNotes.apk"
+                    onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK...' : 'Downloading GlassNotes.apk...')}
+                    className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all text-center"
+                  >
+                    <Download size={15} />
+                    <span>Install APK (Local 18 MB)</span>
+                  </a>
+
+                  <a
+                    href={`https://github.com/${settings.githubOwnerRepo}/releases/download/v1.1.17/GlassNotes.apk`}
+                    download="GlassNotes.apk"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-lg hover:bg-blue-500 active:scale-95 transition-all text-center"
+                  >
+                    <ExternalLink size={15} />
+                    <span>GitHub CDN (Signed APK)</span>
+                  </a>
+                </div>
               </div>
             )}
 
