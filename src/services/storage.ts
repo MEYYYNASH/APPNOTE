@@ -25,8 +25,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   githubOwnerRepo: 'MEYYYNASH/APPNOTE',
   githubBranch: 'main',
   githubToken: '',
-  appVersion: '1.1.15',
-  latestAvailableVersion: '',
+  appVersion: '1.1.17',
+  latestAvailableVersion: 'v1.1.17',
   includePrereleases: false,
 };
 

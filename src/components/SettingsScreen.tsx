@@ -127,14 +127,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       );
       if (res.ok) {
         const data = await res.json();
-        const tag = data.tag_name || 'v1.1.15';
+        const tag = data.tag_name || 'v1.1.17';
         onUpdateSettings((s) => ({ ...s, latestAvailableVersion: tag }));
-        setUpdateStatus(`Latest version: ${tag} (Up to date)`);
+        setUpdateStatus(`Latest version: ${tag} (Official release active on GitHub)`);
       } else {
-        setUpdateStatus('Already using the latest GlassNotes build (v1.1.15).');
+        setUpdateStatus('Latest version: v1.1.17 (Available on GitHub Releases).');
       }
     } catch {
-      setUpdateStatus('Already using the latest GlassNotes build (v1.1.15).');
+      setUpdateStatus('Latest version: v1.1.17 (Available on GitHub Releases).');
     } finally {
       setIsCheckingUpdate(false);
     }
@@ -354,12 +354,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'កំណែចុងក្រោយលើ GitHub' : 'Latest Release'}:</span>
-                <span className="font-semibold">{settings.latestAvailableVersion || 'v1.1.15'}</span>
+                <span className="font-semibold text-blue-500">{settings.latestAvailableVersion || 'v1.1.17'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'ស្ថានភាពអាប់ដេត' : 'Update Status'}:</span>
                 <span className="font-semibold text-emerald-500">
-                  {isReadyToInstall ? (isKm ? 'បានផ្ទៀងផ្ទាត់រួចរាល់' : 'Ready to Install') : (isKm ? 'ទាន់សម័យ (Up to date)' : 'Up to Date')}
+                  {isReadyToInstall ? (isKm ? 'បានផ្ទៀងផ្ទាត់រួចរាល់' : 'Ready to Install') : (isKm ? 'ទាន់សម័យ (v1.1.17 Available)' : 'v1.1.17 Active on GitHub')}
                 </span>
               </div>
               {updateStatus && (
@@ -367,6 +367,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   {updateStatus}
                 </p>
               )}
+            </div>
+
+            {/* Note for certificate signature update conflict */}
+            <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-600 dark:text-amber-400">
+              <span className="font-bold">💡 Note on "Package Conflict" / "Signature Mismatch":</span>{' '}
+              If your phone shows <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 first, then install the latest <strong>v1.1.17 APK</strong> from GitHub Releases.
             </div>
 
             {/* Live Download HUD */}
@@ -377,7 +383,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                      {isKm ? 'កំពុងទាញយក v1.1.15' : 'Downloading v1.1.15 (Release APK)'}
+                      {isKm ? 'កំពុងទាញយក v1.1.17' : 'Downloading v1.1.17 (Release APK)'}
                     </span>
                   </div>
                   <button
