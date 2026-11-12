@@ -148,6 +148,117 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
+  const [isPublishingRelease, setIsPublishingRelease] = useState(false);
+
+  const handlePublishGitHubRelease = async () => {
+    const token = settings.githubToken.trim();
+    const repo = settings.githubOwnerRepo || 'MEYYYNASH/APPNOTE';
+    if (!token) {
+      onShowToast('Paste your GitHub Token (ghp_...) above to auto-publish v1.1.18, or publish on the opened GitHub page.');
+      window.open(
+        `https://github.com/${repo}/releases/new?tag=v1.1.18&title=APPNOTE+v1.1.18`,
+        '_blank',
+        'noopener,noreferrer'
+      );
+      return;
+    }
+
+    setIsPublishingRelease(true);
+    setUpdateStatus('Publishing APPNOTE v1.1.18 (Latest) to GitHub Releases...');
+    try {
+      const headers: Record<string, string> = {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
+
+      // 1. Trigger GitHub Actions workflow_dispatch if workflow exists
+      await fetch(
+        `https://api.github.com/repos/${repo}/actions/workflows/android-release.yml/dispatches`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            ref: settings.githubBranch || 'main',
+            inputs: { release_tag: 'v1.1.18' },
+          }),
+        }
+      ).catch(() => null);
+
+      const releaseBody = [
+        '## APPNOTE v1.1.18',
+        '- **Package Name:** `com.aistudio.glassnotes.vqpzxm`',
+        '- **Version Name:** `1.1.18` (`versionCode = 10118`)',
+        '- **Signing Cert SHA-256:** `8b25970192ce5ae0ed63b04a2d03909111f9ba9afcb837053856137821b8b5b4`',
+        '- **5 Interactive Glass Widgets Strip** (Quick Note, Upcoming Reminder, Note Statistics, Pomodoro 25:00 Focus, Inspiration Quote)',
+        '- **Neon Bento Note Cards & Bottom Dock**',
+        '- **Folders, Multi-Page Document Scanner, Advanced Note Editor & Custom Reminder Sounds**',
+      ].join('\n');
+
+      // 2. Create or update APPNOTE v1.1.18 release as Latest
+      let releaseRes = await fetch(`https://api.github.com/repos/${repo}/releases`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          tag_name: 'v1.1.18',
+          target_commitish: settings.githubBranch || 'main',
+          name: 'APPNOTE v1.1.18',
+          body: releaseBody,
+          draft: false,
+          prerelease: false,
+          make_latest: 'true',
+        }),
+      });
+
+      if (!releaseRes.ok) {
+        const existingTagRes = await fetch(
+          `https://api.github.com/repos/${repo}/releases/tags/v1.1.18`,
+          { headers }
+        );
+        if (existingTagRes.ok) {
+          const existingData = await existingTagRes.json();
+          if (existingData?.id) {
+            releaseRes = await fetch(
+              `https://api.github.com/repos/${repo}/releases/${existingData.id}`,
+              {
+                method: 'PATCH',
+                headers,
+                body: JSON.stringify({
+                  name: 'APPNOTE v1.1.18',
+                  body: releaseBody,
+                  draft: false,
+                  prerelease: false,
+                  make_latest: 'true',
+                }),
+              }
+            );
+          }
+        }
+      }
+
+      if (releaseRes.ok) {
+        onUpdateSettings((s) => ({
+          ...s,
+          appVersion: '1.1.18',
+          latestAvailableVersion: 'v1.1.18',
+        }));
+        setUpdateStatus('Published APPNOTE v1.1.18 (Latest) on GitHub Releases!');
+        onShowToast('Published APPNOTE v1.1.18 as Latest on GitHub!');
+      } else {
+        const errData = await releaseRes.json().catch(() => ({}));
+        const msg = errData?.message || `HTTP ${releaseRes.status}`;
+        setUpdateStatus(`GitHub API response: ${msg}`);
+        onShowToast(`GitHub Release failed: ${msg}`);
+      }
+    } catch {
+      setUpdateStatus('Network error while publishing release to GitHub.');
+      onShowToast('Could not reach GitHub API. Check token permissions.');
+    } finally {
+      setIsPublishingRelease(false);
+    }
+  };
+
   const handleTestSpeed = async () => {
     setIsTestingSpeed(true);
     setSpeedTestProgress(10);
@@ -608,15 +719,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <span>{isKm ? 'មើលកំណត់ចំណាំកំណែ (Release Notes)' : 'View Release Notes'}</span>
                 </button>
 
-                <a
-                  href={`https://github.com/${settings.githubOwnerRepo}/releases/new?tag=v1.1.18&title=APPNOTE+v1.1.18`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 py-2.5 rounded-2xl glass-field text-xs font-semibold hover:bg-emerald-500/10 hover:text-emerald-400 active:scale-95 transition-all text-center"
+                <button
+                  type="button"
+                  onClick={handlePublishGitHubRelease}
+                  disabled={isPublishingRelease}
+                  className="flex items-center justify-center gap-2 py-2.5 rounded-2xl glass-field text-xs font-semibold hover:bg-emerald-500/10 hover:text-emerald-400 active:scale-95 transition-all text-center disabled:opacity-50"
                 >
-                  <PlusCircle size={14} className="text-emerald-400" />
-                  <span>Add to Releases (GitHub)</span>
-                </a>
+                  <PlusCircle size={14} className={`text-emerald-400 ${isPublishingRelease ? 'animate-spin' : ''}`} />
+                  <span>
+                    {isPublishingRelease
+                      ? 'Publishing v1.1.18...'
+                      : 'Add to Releases (GitHub)'}
+                  </span>
+                </button>
               </div>
 
               {/* Open GitHub Repository & Test Download Speed */}
