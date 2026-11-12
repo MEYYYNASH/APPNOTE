@@ -132,6 +132,12 @@ fun SettingsScreen(
     }
     var downloadProgressPct by remember { mutableStateOf(0) }
     var showReleaseNotesDialog by remember { mutableStateOf(false) }
+    var showPublishReleaseDialog by remember { mutableStateOf(false) }
+    var publishTagInput by remember { mutableStateOf("v1.1.0") }
+    var publishNotesInput by remember { mutableStateOf("APPNOTE stable release with glass blur, voice WAV, photo crop & GitHub auto-update.") }
+    var publishTokenInput by remember(settings.githubToken) { mutableStateOf(settings.githubToken) }
+    var isPublishingRelease by remember { mutableStateOf(false) }
+    var publishStatusMessage by remember { mutableStateOf("") }
 
     BackHandler(onBack = onBack)
 
@@ -185,7 +191,7 @@ fun SettingsScreen(
         cornerRadius = 24.dp,
         modifier = modifier
             .fillMaxSize()
-            .blur(if (showReleaseNotesDialog) 26.dp else 0.dp)
+            .blur(if (showReleaseNotesDialog || showPublishReleaseDialog) 26.dp else 0.dp)
             .testTag("settings_full_screen")
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -524,7 +530,7 @@ fun SettingsScreen(
                                     )
                                 }
 
-                                // Secondary Actions Row: View Release Notes & Open GitHub Repository
+                                // Secondary Actions Row: View Release Notes, Add to Releases, & Open GitHub Repository
                                 FlowRow(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -534,6 +540,14 @@ fun SettingsScreen(
                                         label = if (isKm) "មើលកំណត់ត្រាកំណែថ្មី" else "View Release Notes",
                                         testTag = "setting_view_release_notes_button",
                                         onClick = { showReleaseNotesDialog = true }
+                                    )
+                                    SettingsActionBtn(
+                                        label = if (isKm) "បង្កើត Release លើ GitHub" else "Add to Releases (GitHub)",
+                                        testTag = "setting_publish_github_release_button",
+                                        onClick = {
+                                            publishStatusMessage = ""
+                                            showPublishReleaseDialog = true
+                                        }
                                     )
                                     SettingsActionBtn(
                                         label = if (isKm) "បើក GitHub Repository" else "Open GitHub Repository",
@@ -973,6 +987,169 @@ fun SettingsScreen(
                             modifier = Modifier.weight(0.7f)
                         )
                     }
+                }
+            }
+        }
+    }
+
+    if (showPublishReleaseDialog) {
+        Dialog(onDismissRequest = { if (!isPublishingRelease) showPublishReleaseDialog = false }) {
+            GlassPanel(
+                elevated = true,
+                cornerRadius = 24.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("publish_github_release_dialog")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Add Release to GitHub",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = tokens.textPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        GlassIconButton(
+                            icon = LineIconType.CLOSE,
+                            contentDesc = "Close",
+                            sizeDp = 36.dp,
+                            onClick = { if (!isPublishingRelease) showPublishReleaseDialog = false },
+                            testTagName = "close_publish_release_dialog"
+                        )
+                    }
+
+                    Text(
+                        text = "Target: ${GitHubSyncHelper.OFFICIAL_REPO_SLUG}/releases • Uploads app-release.apk + SHA-256",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = tokens.accentStart,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    // Tag Name Input
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(tokens.fieldFill)
+                            .border(1.dp, tokens.panelBorder, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        BasicTextField(
+                            value = publishTagInput,
+                            onValueChange = { publishTagInput = it },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = tokens.textPrimary),
+                            cursorBrush = SolidColor(tokens.accentStart),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // GitHub Personal Access Token Input
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(tokens.fieldFill)
+                            .border(1.dp, tokens.panelBorder, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        if (publishTokenInput.isEmpty()) {
+                            Text(
+                                text = "GitHub Token (ghp_...) to upload APK release",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = tokens.textSecondary
+                            )
+                        }
+                        BasicTextField(
+                            value = publishTokenInput,
+                            onValueChange = {
+                                publishTokenInput = it
+                                onUpdateSettings { s -> s.copy(githubToken = it) }
+                            },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = tokens.textPrimary),
+                            cursorBrush = SolidColor(tokens.accentStart),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // Release Notes Input
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(tokens.fieldFill)
+                            .border(1.dp, tokens.panelBorder, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        BasicTextField(
+                            value = publishNotesInput,
+                            onValueChange = { publishNotesInput = it },
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = tokens.textPrimary),
+                            cursorBrush = SolidColor(tokens.accentStart),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    if (publishStatusMessage.isNotBlank()) {
+                        Text(
+                            text = publishStatusMessage,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = tokens.accentStart,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    GlassActionPill(
+                        label = if (isPublishingRelease) "Uploading APK to GitHub Releases..." else "Publish Release & Upload APK",
+                        icon = LineIconType.CLOUD_UPLOAD,
+                        primary = true,
+                        onClick = {
+                            if (isPublishingRelease) return@GlassActionPill
+                            scope.launch {
+                                isPublishingRelease = true
+                                publishStatusMessage = "Starting GitHub Release upload..."
+                                val res = GitHubSyncHelper.createAndUploadGitHubRelease(
+                                    context = context,
+                                    token = publishTokenInput,
+                                    tagNameInput = publishTagInput,
+                                    releaseNotesInput = publishNotesInput,
+                                    onStatus = { st -> publishStatusMessage = st }
+                                )
+                                isPublishingRelease = false
+                                releaseInfo = res
+                                if (res.state != UpdateState.FAILED) {
+                                    showPublishReleaseDialog = false
+                                    onShowToast("Published ${res.latestReleaseTag} to GitHub Releases!")
+                                } else {
+                                    publishStatusMessage = res.errorDetail.ifBlank { res.statusMessage }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    GlassActionPill(
+                        label = "Open GitHub 'New Release' Web Page",
+                        icon = LineIconType.SHARE,
+                        onClick = {
+                            GitHubSyncHelper.openOfficialGitHubRepository(
+                                context = context,
+                                url = "${GitHubSyncHelper.OFFICIAL_REPO_URL}/releases/new"
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }

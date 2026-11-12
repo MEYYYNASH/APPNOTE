@@ -597,6 +597,232 @@ object GitHubSyncHelper {
         }
     }
 
+    /**
+     * Publishes a new GitHub Release directly to `MEY-NASHH/APPNOTE/releases` using the GitHub Releases REST API
+     * and uploads the signed `app-release.apk`, `app-release.apk.sha256`, and `release-metadata.json` as release assets.
+     */
+    suspend fun createAndUploadGitHubRelease(
+        context: Context,
+        token: String,
+        tagNameInput: String,
+        releaseNotesInput: String,
+        onStatus: (String) -> Unit
+    ): GitHubReleaseInfo = withContext(Dispatchers.IO) {
+        val installed = getInstalledAppInfo(context)
+        val cleanToken = token.trim()
+        if (cleanToken.isBlank()) {
+            return@withContext GitHubReleaseInfo(
+                state = UpdateState.FAILED,
+                statusMessage = UpdateState.FAILED.statusTextEn,
+                installedVersionName = installed.versionName,
+                installedVersionCode = installed.versionCode,
+                latestReleaseTag = "Token required",
+                errorDetail = "Enter your GitHub Personal Access Token (ghp_...) with repo/contents write permission to publish a release."
+            )
+        }
+
+        val rawTag = tagNameInput.trim().ifBlank { "v1.1.0" }
+        val tagName = if (rawTag.startsWith("v") || rawTag.startsWith("V")) rawTag else "v$rawTag"
+        val cleanVersion = tagName.removePrefix("v").removePrefix("V")
+        val remoteVersionCode = deriveVersionCodeFromTag(tagName).coerceAtLeast(installed.versionCode + 1L)
+
+        try {
+            val apkFile = File(context.applicationInfo.sourceDir)
+            if (!apkFile.exists() || !apkFile.canRead()) {
+                return@withContext GitHubReleaseInfo(
+                    state = UpdateState.FAILED,
+                    statusMessage = UpdateState.FAILED.statusTextEn,
+                    installedVersionName = installed.versionName,
+                    installedVersionCode = installed.versionCode,
+                    errorDetail = "Could not read installed APK package for upload."
+                )
+            }
+
+            onStatus("Calculating APK SHA-256 checksum...")
+            val apkSha256 = computeFileSha256(apkFile)
+            val releaseBody = buildString {
+                if (releaseNotesInput.isNotBlank()) {
+                    appendLine(releaseNotesInput.trim())
+                    appendLine()
+                }
+                appendLine("## APPNOTE $tagName")
+                appendLine("- **Version Name:** `$cleanVersion`")
+                appendLine("- **Version Code:** `$remoteVersionCode`")
+                appendLine("- **APK Asset:** `app-release.apk`")
+                appendLine("- **SHA-256:** `$apkSha256`")
+            }
+
+            onStatus("Creating GitHub Release $tagName on $OFFICIAL_REPO_SLUG...")
+            val createPayload = JSONObject().apply {
+                put("tag_name", tagName)
+                put("name", "APPNOTE $tagName")
+                put("body", releaseBody)
+                put("draft", false)
+                put("prerelease", false)
+            }
+
+            val createConn = (URL(RELEASES_API_URL).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                doOutput = true
+                connectTimeout = 15000
+                readTimeout = 20000
+                setRequestProperty("Accept", "application/vnd.github+json")
+                setRequestProperty("Authorization", "Bearer $cleanToken")
+                setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+                setRequestProperty("User-Agent", "APPNOTE-Android-Updater")
+            }
+            createConn.outputStream.use { out ->
+                out.write(createPayload.toString().toByteArray(Charsets.UTF_8))
+                out.flush()
+            }
+
+            val createCode = createConn.responseCode
+            val releaseJsonStr = if (createCode in 200..299) {
+                createConn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            } else {
+                val errBody = try {
+                    createConn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                } catch (_: Exception) {
+                    ""
+                }
+                createConn.disconnect()
+                val errMsg = try {
+                    JSONObject(errBody).optString("message", "HTTP $createCode")
+                } catch (_: Exception) {
+                    "HTTP $createCode"
+                }
+                return@withContext GitHubReleaseInfo(
+                    state = UpdateState.FAILED,
+                    statusMessage = UpdateState.FAILED.statusTextEn,
+                    installedVersionName = installed.versionName,
+                    installedVersionCode = installed.versionCode,
+                    errorDetail = "GitHub Release creation failed ($createCode): $errMsg"
+                )
+            }
+            createConn.disconnect()
+
+            val releaseJson = JSONObject(releaseJsonStr)
+            val releaseId = releaseJson.optLong("id", 0L)
+            val uploadBaseUrl = "https://uploads.github.com/repos/$OFFICIAL_REPO_SLUG/releases/$releaseId/assets"
+
+            // Upload release-metadata.json
+            onStatus("Uploading release-metadata.json & SHA-256...")
+            val metaJson = JSONObject().apply {
+                put("repository", OFFICIAL_REPO_SLUG)
+                put("tagName", tagName)
+                put("versionName", cleanVersion)
+                put("versionCode", remoteVersionCode)
+                put("apkFileName", "app-release.apk")
+                put("sha256", apkSha256)
+                put("signingCertSha256", installed.signingCertSha256)
+                put("publishedAt", releaseJson.optString("published_at", ""))
+            }
+            uploadReleaseAssetBytes(
+                uploadBaseUrl = uploadBaseUrl,
+                token = cleanToken,
+                assetName = "release-metadata.json",
+                contentType = "application/json",
+                bytes = metaJson.toString(2).toByteArray(Charsets.UTF_8)
+            )
+
+            // Upload app-release.apk.sha256
+            uploadReleaseAssetBytes(
+                uploadBaseUrl = uploadBaseUrl,
+                token = cleanToken,
+                assetName = "app-release.apk.sha256",
+                contentType = "text/plain",
+                bytes = "$apkSha256  app-release.apk\n".toByteArray(Charsets.UTF_8)
+            )
+
+            // Upload signed app-release.apk
+            onStatus("Uploading signed app-release.apk (${apkFile.length() / 1024} KB) to GitHub Release...")
+            uploadReleaseAssetFile(
+                uploadBaseUrl = uploadBaseUrl,
+                token = cleanToken,
+                assetName = "app-release.apk",
+                file = apkFile
+            )
+
+            // Query the freshly published release from GitHub Releases API
+            checkGitHubReleaseUpdate(
+                context = context,
+                includePrerelease = false,
+                notifyOnNewRelease = true
+            )
+        } catch (e: Exception) {
+            GitHubReleaseInfo(
+                state = UpdateState.FAILED,
+                statusMessage = UpdateState.FAILED.statusTextEn,
+                installedVersionName = installed.versionName,
+                installedVersionCode = installed.versionCode,
+                errorDetail = e.localizedMessage ?: "Failed to publish GitHub Release"
+            )
+        }
+    }
+
+    private fun uploadReleaseAssetBytes(
+        uploadBaseUrl: String,
+        token: String,
+        assetName: String,
+        contentType: String,
+        bytes: ByteArray
+    ) {
+        val conn = (URL("$uploadBaseUrl?name=$assetName").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            connectTimeout = 15000
+            readTimeout = 20000
+            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", contentType)
+            setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+        }
+        try {
+            conn.outputStream.use { out ->
+                out.write(bytes)
+                out.flush()
+            }
+            conn.responseCode
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun uploadReleaseAssetFile(
+        uploadBaseUrl: String,
+        token: String,
+        assetName: String,
+        file: File
+    ) {
+        val conn = (URL("$uploadBaseUrl?name=$assetName").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            doOutput = true
+            setFixedLengthStreamingMode(file.length())
+            connectTimeout = 20000
+            readTimeout = 60000
+            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", "application/vnd.android.package-archive")
+            setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+        }
+        try {
+            FileInputStream(file).use { input ->
+                conn.outputStream.use { output ->
+                    val buf = ByteArray(8192)
+                    var r: Int
+                    while (input.read(buf).also { r = it } != -1) {
+                        output.write(buf, 0, r)
+                    }
+                    output.flush()
+                }
+            }
+            conn.responseCode
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     fun isTrustedHttpsUrl(url: String): Boolean {
         return try {
             val parsed = Uri.parse(url.trim())
