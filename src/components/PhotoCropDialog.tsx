@@ -112,33 +112,35 @@ export const PhotoCropDialog: React.FC<PhotoCropDialogProps> = ({
   const prefix = currentBase64.startsWith('data:') ? '' : 'data:image/jpeg;base64,';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in select-none">
-      <div className="w-full max-w-md rounded-3xl glass-panel-elevated p-5 flex flex-col gap-3 shadow-2xl border border-white/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in select-none">
+      <div className="w-full max-w-md rounded-2xl glass-panel-elevated p-4 flex flex-col gap-2.5 shadow-2xl border border-white/30">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Crop size={18} className="text-blue-500" />
-            <h3 className="text-lg font-bold">{strings.cropPhotoTitle}</h3>
+            <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-500">
+              <Crop size={16} />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">{strings.cropPhotoTitle}</h3>
           </div>
           <button
             onClick={handleRotate}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-field text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-field text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           >
-            <RotateCw size={14} />
+            <RotateCw size={13} />
             <span>{strings.rotateBtn}</span>
           </button>
         </div>
 
         {/* Aspect presets */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
           {['Free', '1:1', '4:3', '16:9'].map((ratio) => (
             <button
               key={ratio}
               onClick={() => applyAspectPreset(ratio)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+              className={`px-3 py-1 rounded-xl text-xs font-medium transition-all ${
                 activePreset === ratio
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow'
-                  : 'glass-field hover:opacity-100 opacity-70'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-sm'
+                  : 'glass-field hover:opacity-100 opacity-70 text-slate-700 dark:text-slate-300'
               }`}
             >
               {ratio}
@@ -151,7 +153,7 @@ export const PhotoCropDialog: React.FC<PhotoCropDialogProps> = ({
           ref={containerRef}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          className="relative w-full h-64 rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center border border-white/20 touch-none cursor-crosshair"
+          className="relative w-full h-72 rounded-xl overflow-hidden bg-slate-950 flex items-center justify-center border border-white/20 touch-none cursor-crosshair shadow-inner"
         >
           <img
             src={prefix + currentBase64}
@@ -167,7 +169,7 @@ export const PhotoCropDialog: React.FC<PhotoCropDialogProps> = ({
               right: 0,
               height: `${crop.top * 100}%`,
             }}
-            className="absolute bg-black/60 pointer-events-none"
+            className="absolute bg-black/70 pointer-events-none"
           />
           <div
             style={{
@@ -176,7 +178,7 @@ export const PhotoCropDialog: React.FC<PhotoCropDialogProps> = ({
               right: 0,
               height: `${(1 - crop.bottom) * 100}%`,
             }}
-            className="absolute bg-black/60 pointer-events-none"
+            className="absolute bg-black/70 pointer-events-none"
           />
           <div
             style={{
@@ -185,7 +187,7 @@ export const PhotoCropDialog: React.FC<PhotoCropDialogProps> = ({
               width: `${crop.left * 100}%`,
               height: `${(crop.bottom - crop.top) * 100}%`,
             }}
-            className="absolute bg-black/60 pointer-events-none"
+            className="absolute bg-black/70 pointer-events-none"
           />
           <div
             style={{
@@ -194,7 +196,7 @@ export const PhotoCropDialog: React.FC<PhotoCropDialogProps> = ({
               width: `${(1 - crop.right) * 100}%`,
               height: `${(crop.bottom - crop.top) * 100}%`,
             }}
-            className="absolute bg-black/60 pointer-events-none"
+            className="absolute bg-black/70 pointer-events-none"
           />
 
           {/* Crop Rectangle & Handles */}
@@ -205,55 +207,55 @@ export const PhotoCropDialog: React.FC<PhotoCropDialogProps> = ({
               width: `${(crop.right - crop.left) * 100}%`,
               height: `${(crop.bottom - crop.top) * 100}%`,
             }}
-            className="absolute border-2 border-white pointer-events-none shadow-sm"
+            className="absolute border border-white/90 pointer-events-none shadow-md"
           >
             {/* Rule of thirds grid lines */}
             <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none">
-              <div className="border-r border-b border-white/30" />
-              <div className="border-r border-b border-white/30" />
-              <div className="border-b border-white/30" />
-              <div className="border-r border-b border-white/30" />
-              <div className="border-r border-b border-white/30" />
-              <div className="border-b border-white/30" />
-              <div className="border-r border-white/30" />
-              <div className="border-r border-white/30" />
+              <div className="border-r border-b border-white/25" />
+              <div className="border-r border-b border-white/25" />
+              <div className="border-b border-white/25" />
+              <div className="border-r border-b border-white/25" />
+              <div className="border-r border-b border-white/25" />
+              <div className="border-b border-white/25" />
+              <div className="border-r border-white/25" />
+              <div className="border-r border-white/25" />
               <div />
             </div>
 
             {/* Corner Drag Handles */}
             <div
               onPointerDown={(e) => handlePointerDown(1, e)}
-              className="absolute -top-2.5 -left-2.5 w-6 h-6 rounded-full bg-blue-500 border-2 border-white pointer-events-auto cursor-nwse-resize shadow-md"
+              className="absolute -top-2 -left-2 w-4 h-4 rounded-full bg-white border-2 border-blue-600 pointer-events-auto cursor-nwse-resize shadow-lg flex items-center justify-center"
             />
             <div
               onPointerDown={(e) => handlePointerDown(2, e)}
-              className="absolute -top-2.5 -right-2.5 w-6 h-6 rounded-full bg-blue-500 border-2 border-white pointer-events-auto cursor-nesw-resize shadow-md"
+              className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-white border-2 border-blue-600 pointer-events-auto cursor-nesw-resize shadow-lg flex items-center justify-center"
             />
             <div
               onPointerDown={(e) => handlePointerDown(3, e)}
-              className="absolute -bottom-2.5 -left-2.5 w-6 h-6 rounded-full bg-blue-500 border-2 border-white pointer-events-auto cursor-nesw-resize shadow-md"
+              className="absolute -bottom-2 -left-2 w-4 h-4 rounded-full bg-white border-2 border-blue-600 pointer-events-auto cursor-nesw-resize shadow-lg flex items-center justify-center"
             />
             <div
               onPointerDown={(e) => handlePointerDown(4, e)}
-              className="absolute -bottom-2.5 -right-2.5 w-6 h-6 rounded-full bg-blue-500 border-2 border-white pointer-events-auto cursor-nwse-resize shadow-md"
+              className="absolute -bottom-2 -right-2 w-4 h-4 rounded-full bg-white border-2 border-blue-600 pointer-events-auto cursor-nwse-resize shadow-lg flex items-center justify-center"
             />
           </div>
         </div>
 
         {/* Buttons */}
-        <div className="grid grid-cols-2 gap-3 mt-1">
+        <div className="grid grid-cols-2 gap-2.5 mt-0.5">
           <button
             onClick={onDismiss}
-            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl glass-field text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+            className="flex items-center justify-center gap-1.5 py-2 rounded-xl glass-field text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-slate-700 dark:text-slate-200"
           >
-            <X size={16} />
+            <X size={15} />
             <span>{strings.cancelBtn}</span>
           </button>
           <button
             onClick={handleCropConfirm}
-            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold shadow-md hover:brightness-110 active:scale-95 transition-all"
+            className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all"
           >
-            <Check size={16} />
+            <Check size={15} />
             <span>{strings.cropSaveBtn}</span>
           </button>
         </div>

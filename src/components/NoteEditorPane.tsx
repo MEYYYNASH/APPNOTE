@@ -9,6 +9,7 @@ import {
   FolderItem,
   EditorFontStyleId,
 } from '../types/note';
+import { InteractiveTableEditor } from './InteractiveTableEditor';
 import {
   ArrowLeft,
   Pin,
@@ -1573,48 +1574,19 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
         </div>
       )}
 
-      {/* Insert Table Modal */}
       {showTableModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-xs rounded-3xl glass-panel-elevated p-5 flex flex-col gap-4 shadow-2xl border border-white/40">
-            <h4 className="font-bold text-base">Insert Table</h4>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <label className="flex flex-col gap-1">
-                <span className="font-semibold text-slate-500">Rows</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={tableRows}
-                  onChange={(e) => setTableRows(parseInt(e.target.value, 10) || 2)}
-                  className="p-2 rounded-xl glass-field outline-none font-bold"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="font-semibold text-slate-500">Columns</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={tableCols}
-                  onChange={(e) => setTableCols(parseInt(e.target.value, 10) || 2)}
-                  className="p-2 rounded-xl glass-field outline-none font-bold"
-                />
-              </label>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-1">
-              <button onClick={() => setShowTableModal(false)} className="py-2 rounded-xl glass-field text-xs font-semibold">
-                Cancel
-              </button>
-              <button
-                onClick={handleInsertTable}
-                className="py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow"
-              >
-                Insert
-              </button>
-            </div>
-          </div>
-        </div>
+        <InteractiveTableEditor
+          strings={strings}
+          onClose={() => setShowTableModal(false)}
+          onSave={(_data, html) => {
+            pushSnapshot();
+            restoreSavedSelection();
+            document.execCommand('insertHTML', false, html);
+            syncFromEditorDom();
+            setShowTableModal(false);
+            onShowToast('Interactive Table inserted!');
+          }}
+        />
       )}
 
       {/* Insert Hyperlink Modal */}

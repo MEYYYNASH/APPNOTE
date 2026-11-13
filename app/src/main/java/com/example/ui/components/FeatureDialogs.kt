@@ -112,16 +112,16 @@ fun PhotoCropDialog(
     Dialog(onDismissRequest = onDismiss) {
         GlassPanel(
             elevated = true,
-            cornerRadius = 24.dp,
+            cornerRadius = 20.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("photo_crop_dialog")
         ) {
             Column(
-                modifier = Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Header
+                // Header (Sleek flat design)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -131,10 +131,10 @@ fun PhotoCropDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        LineIcon(type = LineIconType.CROP, tint = tokens.accentStart, size = 20.dp)
+                        LineIcon(type = LineIconType.CROP, tint = tokens.accentStart, size = 18.dp)
                         Text(
                             text = strings.cropPhotoTitle,
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = tokens.textPrimary
                         )
                     }
@@ -143,9 +143,9 @@ fun PhotoCropDialog(
                     Box(
                         modifier = Modifier
                             .testTag("crop_rotate_button")
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .background(tokens.fieldFill)
-                            .border(1.dp, tokens.panelBorder, RoundedCornerShape(12.dp))
+                            .border(1.dp, tokens.panelBorder, RoundedCornerShape(10.dp))
                             .clickable {
                                 val matrix = Matrix().apply { postRotate(90f) }
                                 currentBitmap = Bitmap.createBitmap(
@@ -158,13 +158,13 @@ fun PhotoCropDialog(
                                     true
                                 )
                             }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
-                            LineIcon(type = LineIconType.ROTATE, tint = tokens.textPrimary, size = 16.dp)
+                            LineIcon(type = LineIconType.ROTATE, tint = tokens.textPrimary, size = 14.dp)
                             Text(
                                 text = strings.rotateBtn,
                                 style = MaterialTheme.typography.labelSmall,
@@ -174,26 +174,26 @@ fun PhotoCropDialog(
                     }
                 }
 
-                // Aspect ratio preset chips
+                // Aspect ratio preset chips (Flat & Clean)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf("Free", "1:1", "4:3", "16:9").forEach { ratio ->
                         val selected = activePreset == ratio
                         Box(
                             modifier = Modifier
                                 .testTag("crop_ratio_$ratio")
-                                .clip(CircleShape)
+                                .clip(RoundedCornerShape(10.dp))
                                 .then(
                                     if (selected) Modifier.background(tokens.accentBrush)
                                     else Modifier.background(tokens.fieldFill)
                                 )
-                                .border(1.dp, tokens.panelBorder, CircleShape)
+                                .border(1.dp, if (selected) tokens.accentStart else tokens.panelBorder, RoundedCornerShape(10.dp))
                                 .clickable { applyAspectPreset(ratio) }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .padding(horizontal = 12.dp, vertical = 5.dp)
                         ) {
                             Text(
                                 text = ratio,
@@ -205,14 +205,14 @@ fun PhotoCropDialog(
                     }
                 }
 
-                // Interactive Crop Canvas Container
+                // Interactive Crop Canvas Container (Sleek flat preview)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0xFF0B101B))
-                        .border(1.dp, tokens.panelBorder, RoundedCornerShape(18.dp))
+                        .height(280.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF070B14))
+                        .border(1.dp, tokens.panelBorder, RoundedCornerShape(14.dp))
                         .pointerInput(Unit) {
                             var dragTarget = 0 // 0=center pan, 1=TL, 2=TR, 3=BL, 4=BR
                             detectDragGestures(
@@ -289,31 +289,31 @@ fun PhotoCropDialog(
                         val ch = (b - t).coerceAtLeast(10f)
 
                         // Dimmed outside regions
-                        val maskColor = Color.Black.copy(alpha = 0.52f)
+                        val maskColor = Color.Black.copy(alpha = 0.65f)
                         drawRect(maskColor, Offset(0f, 0f), Size(w, t))
                         drawRect(maskColor, Offset(0f, b), Size(w, h - b))
                         drawRect(maskColor, Offset(0f, t), Size(l, ch))
                         drawRect(maskColor, Offset(r, t), Size(w - r, ch))
 
-                        // Crop rectangle border
+                        // Crop rectangle border (Sleek flat white)
                         drawRect(
                             color = Color.White,
                             topLeft = Offset(l, t),
                             size = Size(cw, ch),
-                            style = Stroke(width = 2.dp.toPx())
+                            style = Stroke(width = 1.5.dp.toPx())
                         )
 
                         // Rule of thirds lines
-                        val gridColor = Color.White.copy(alpha = 0.45f)
+                        val gridColor = Color.White.copy(alpha = 0.35f)
                         val thirdW = cw / 3f
                         val thirdH = ch / 3f
-                        drawLine(gridColor, Offset(l + thirdW, t), Offset(l + thirdW, b), 1.dp.toPx())
-                        drawLine(gridColor, Offset(l + thirdW * 2f, t), Offset(l + thirdW * 2f, b), 1.dp.toPx())
-                        drawLine(gridColor, Offset(l, t + thirdH), Offset(r, t + thirdH), 1.dp.toPx())
-                        drawLine(gridColor, Offset(l, t + thirdH * 2f), Offset(r, t + thirdH * 2f), 1.dp.toPx())
+                        drawLine(gridColor, Offset(l + thirdW, t), Offset(l + thirdW, b), 0.75.dp.toPx())
+                        drawLine(gridColor, Offset(l + thirdW * 2f, t), Offset(l + thirdW * 2f, b), 0.75.dp.toPx())
+                        drawLine(gridColor, Offset(l, t + thirdH), Offset(r, t + thirdH), 0.75.dp.toPx())
+                        drawLine(gridColor, Offset(l, t + thirdH * 2f), Offset(r, t + thirdH * 2f), 0.75.dp.toPx())
 
-                        // 4 Corner handles
-                        val handleRadius = 7.dp.toPx()
+                        // 4 Corner handles (Modern glowing styling)
+                        val handleRadius = 6.dp.toPx()
                         listOf(
                             Offset(l, t),
                             Offset(r, t),
@@ -321,15 +321,15 @@ fun PhotoCropDialog(
                             Offset(r, b)
                         ).forEach { corner ->
                             drawCircle(Color.White, radius = handleRadius, center = corner)
-                            drawCircle(tokens.accentStart, radius = handleRadius * 0.6f, center = corner)
+                            drawCircle(tokens.accentStart, radius = handleRadius * 0.55f, center = corner)
                         }
                     }
                 }
 
-                // Actions: Cancel & Crop & Save
+                // Actions: Cancel & Crop & Save (Sleek flat action pills)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     GlassActionPill(
                         label = strings.cancelBtn,

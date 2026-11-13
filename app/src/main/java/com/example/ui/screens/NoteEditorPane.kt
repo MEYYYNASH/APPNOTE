@@ -141,7 +141,7 @@ import com.example.ui.components.GlassOuterPane
 import com.example.ui.components.GlassPanel
 import com.example.ui.components.HistoryDialog
 import com.example.ui.components.InsertLinkDialog
-import com.example.ui.components.InsertTableDialog
+import com.example.ui.components.InteractiveTableEditorDialog
 import com.example.ui.components.PhotoCropDialog
 import com.example.ui.components.ReminderPickerDialog
 import com.example.ui.components.RichTextVisualTransformation
@@ -1864,37 +1864,24 @@ fun NoteEditorPane(
         }
 
         if (showInsertTableDialog) {
-            InsertTableDialog(
-                accentColor = tokens.accentStart,
+            InteractiveTableEditorDialog(
+                strings = strings,
                 onDismiss = { showInsertTableDialog = false },
-                onConfirm = { rows, cols ->
-                    val headerRow = (1..cols).joinToString("  |  ") { c -> "Column $c" }
-                    val dataRows = (1..rows).joinToString("\n") { r ->
-                        (1..cols).joinToString("  |  ") { c -> "Item $r.$c" }
-                    }
-                    val tableBlock = "$headerRow\n$dataRows"
+                onSaveMarkdown = { markdownTable ->
                     val pos = bodyFieldValue.selection.end.coerceIn(0, bodyFieldValue.text.length)
                     val lead = if (pos == 0 || bodyFieldValue.text.getOrNull(pos - 1) == '\n') "" else "\n"
                     val trail = "\n"
-                    val insertion = "$lead$tableBlock$trail"
+                    val insertion = "$lead$markdownTable$trail"
                     val newText = bodyFieldValue.text.substring(0, pos) + insertion + bodyFieldValue.text.substring(pos)
-                    val headerStart = pos + lead.length
-                    val headerEnd = headerStart + headerRow.length
                     val shifted = adjustSpansForTextEdit(
                         oldText = bodyFieldValue.text,
                         newText = newText,
                         spans = note.richSpans,
                         typingStyle = TypingFormatState()
                     )
-                    val withBoldHeader = applySpanFormat(
-                        textLength = newText.length,
-                        rangeStart = headerStart,
-                        rangeEnd = headerEnd,
-                        spans = shifted
-                    ) { it.copy(isBold = true) }
                     commitBodyAndSpans(
                         newText = newText,
-                        newSpans = withBoldHeader,
+                        newSpans = shifted,
                         newSelection = TextRange((pos + insertion.length).coerceIn(0, newText.length))
                     )
                 }
