@@ -2,8 +2,8 @@ import React from 'react';
 import {
   X,
   Sparkles,
-  FolderTree,
-  ScanLine,
+  Table,
+  Crop,
   FileEdit,
   BellRing,
   Download,
@@ -21,7 +21,7 @@ interface ReleaseNotesModalProps {
 }
 
 export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
-  version = 'v1.2.01',
+  version = 'v1.2.02',
   isOpen,
   onClose,
   onDownloadApk,
@@ -30,8 +30,8 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl glass-card border border-white/30 shadow-2xl overflow-hidden bg-slate-900/80 text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200 select-none">
+      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl glass-card border border-white/30 shadow-2xl overflow-hidden bg-slate-900/90 text-white">
         
         {/* Header Banner */}
         <div className="p-6 border-b border-white/10 flex items-start justify-between bg-gradient-to-r from-blue-600/30 via-indigo-600/30 to-purple-600/30">
@@ -41,13 +41,13 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold tracking-tight">What's New in {version}</h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Latest Release
+                <h2 className="text-xl font-bold tracking-tight">Features Preview v1.2.02</h2>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  Latest v1.2.2 Release
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                Live WYSIWYG Rich Editor, Custom Text & Highlight Colors, Font Picker & Glance Widgets
+                Professional Interactive Tables, Sleek Flat Crop UI, Immersive Read Mode & Advanced Grid System
               </p>
             </div>
           </div>
@@ -62,150 +62,89 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
         {/* Scrollable Feature Sections */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm">
           
-          {/* Suite 1: Folders */}
+          {/* Suite 1: Professional Interactive Tables */}
           <div className="p-4 rounded-2xl glass-field border border-white/10 space-y-3">
             <div className="flex items-center gap-2.5 text-blue-400 font-bold text-base">
-              <FolderTree size={20} />
-              <h3>1. Complete Folders System</h3>
+              <Table size={20} />
+              <h3>1. Professional Interactive Table System (v1.2.02)</h3>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Organize your thoughts with unlimited hierarchy, visual identifiers, and seamless dragging.
+              Notion Database + Excel + Numbers inspired fully interactive visual grid system built directly into APPNOTE.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-emerald-400 flex-none" />
-                <span>Create, Rename & Delete Folders</span>
+                <span>Rich Cell Types: Text, Numbers, Dates, Checkboxes</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-emerald-400 flex-none" />
-                <span>Subfolders tree hierarchy</span>
+                <span>Status Badges & Dropdown Selections</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-emerald-400 flex-none" />
-                <span>Custom folder icons & vibrant colors</span>
+                <span>Currency, Progress Bars & Star Ratings</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-emerald-400 flex-none" />
-                <span>Drag & Drop notes into folders</span>
+                <span>Add, Delete & Rename Rows and Columns</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-emerald-400 flex-none" />
-                <span>Move & Copy notes via context sheet</span>
+                <span>Sorting, Filtering & Instant Search</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-emerald-400 flex-none" />
-                <span>Pin, Archive & Restore Deleted Folders</span>
+                <span>Pre-built Templates & CSV Export</span>
               </div>
             </div>
           </div>
 
-          {/* Suite 2: Document Scanner & OCR */}
+          {/* Suite 2: Sleek Flat Crop & Scan UI */}
           <div className="p-4 rounded-2xl glass-field border border-white/10 space-y-3">
             <div className="flex items-center gap-2.5 text-cyan-400 font-bold text-base">
-              <ScanLine size={20} />
-              <h3>2. Document Scanner & Optical OCR</h3>
+              <Crop size={20} />
+              <h3>2. Sleek Flat Crop & Scan UI (សំប៉ែត)</h3>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Digitize physical papers, receipts, and book pages with scanner-grade optical filters and direct PDF generation.
+              Redesigned high-end minimalist crop editor with flat proportions, flush aspect ratio chips, and glowing corner handles.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-cyan-400 flex-none" />
-                <span>Camera scanner & photo gallery import</span>
+                <span>Ultra-flat modern minimalist aesthetic</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-cyan-400 flex-none" />
-                <span>Auto edge detection & manual crop perspective</span>
+                <span>Aspect ratio presets (Free, 1:1, 4:3, 16:9)</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-cyan-400 flex-none" />
-                <span>Multi-page scanning, reorder & rotation</span>
+                <span>Precise rule-of-thirds grid preview</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-cyan-400 flex-none" />
-                <span>Black & White and Grayscale enhancement</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-cyan-400 flex-none" />
-                <span>OCR text recognition into note body</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-cyan-400 flex-none" />
-                <span>Direct Image-to-PDF export & sharing</span>
+                <span>Instant 90° rotation & high-contrast scan filter</span>
               </div>
             </div>
           </div>
 
-          {/* Suite 3: Advanced Rich Note Editor */}
+          {/* Suite 3: Immersive Reading Mode */}
           <div className="p-4 rounded-2xl glass-field border border-white/10 space-y-3">
             <div className="flex items-center gap-2.5 text-purple-400 font-bold text-base">
               <FileEdit size={20} />
-              <h3>3. Advanced Rich-Text Note Editor</h3>
+              <h3>3. Immersive Reading Mode & Typography</h3>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Express your creativity with extensive formatting, multi-media attachments, drawing, and pre-built templates.
+              Distraction-free reading environment with curated typography, generous padding, and polished glassmorphic styling.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Live WYSIWYG formatting (zero raw markdown syntax)</span>
+                <span>Immersive reading container with slate gradient</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Custom Text & Highlight Color Picker + Font Styles</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Tables, quotes, code blocks & interactive checklists</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Voice recorder with waveform playback</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Handwriting & Vector Drawing Canvas</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>5 Templates: Meeting, Project, Planner, Study, Brainstorm</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Suite 4: Custom Reminder & Audio */}
-          <div className="p-4 rounded-2xl glass-field border border-white/10 space-y-3">
-            <div className="flex items-center gap-2.5 text-amber-400 font-bold text-base">
-              <BellRing size={20} />
-              <h3>4. Custom Reminder & Sound Settings</h3>
-            </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Tailor every reminder with synthetic crystal chimes, file audio imports, custom vibration patterns, and quiet hours.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-amber-400 flex-none" />
-                <span>6 synthesized sound styles & custom audio upload</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-amber-400 flex-none" />
-                <span>Sound + Vibration, Vibration Only, or Silent</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-amber-400 flex-none" />
-                <span>Volume slider (0–100%) & gradual volume ramp</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-amber-400 flex-none" />
-                <span>Custom vibration patterns (Heartbeat, Pulse, SOS)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-amber-400 flex-none" />
-                <span>Do Not Disturb (DND) scheduled quiet hours</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-amber-400 flex-none" />
-                <span>Per-reminder individual sound selection</span>
+                <span>Custom font styling & typography scaling</span>
               </div>
             </div>
           </div>
@@ -217,7 +156,7 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
               <span>Installation & Package Conflict Note</span>
             </div>
             <p>
-              If your phone displays <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 version first, then install <strong>v1.2.01</strong> for a smooth, conflict-free setup.
+              If your phone displays <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 version first, then install <strong>v1.2.02</strong> for a smooth, conflict-free setup.
             </p>
           </div>
         </div>
@@ -242,15 +181,15 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
               Close
             </button>
             <a
-              href={`https://github.com/${githubOwnerRepo}/releases/download/v1.2.01/GlassNotes.apk`}
-              download="GlassNotes-v1.2.01.apk"
+              href={`https://github.com/${githubOwnerRepo}/releases/download/v1.2.02/GlassNotes.apk`}
+              download="GlassNotes-v1.2.02.apk"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => onDownloadApk?.()}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all"
             >
               <Download size={14} />
-              <span>Download v1.2.01 APK</span>
+              <span>Download v1.2.02 APK</span>
             </a>
           </div>
         </div>
