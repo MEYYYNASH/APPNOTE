@@ -5,6 +5,7 @@ import com.example.model.ActivityLogEntry
 import com.example.model.AppSettings
 import com.example.model.AttachmentType
 import com.example.model.ChecklistItem
+import com.example.model.EditorFontStyle
 import com.example.model.FontOption
 import com.example.model.LanguageOption
 import com.example.model.Note
@@ -13,6 +14,7 @@ import com.example.model.NoteColor
 import com.example.model.NoteFolder
 import com.example.model.NoteType
 import com.example.model.NoteVersion
+import com.example.model.RichTextSpan
 import com.example.model.ThemeOption
 import com.example.data.local.AppDatabase
 import com.example.data.local.toEntity
@@ -491,6 +493,31 @@ class NotesRepository(context: Context) {
                 })
             }
             put("activityLog", logArr)
+
+            val richSpansArr = JSONArray()
+            note.richSpans.forEach { sp ->
+                richSpansArr.put(JSONObject().apply {
+                    put("start", sp.start)
+                    put("end", sp.end)
+                    if (sp.isBold) put("isBold", true)
+                    if (sp.isItalic) put("isItalic", true)
+                    if (sp.isUnderline) put("isUnderline", true)
+                    if (sp.isStrikethrough) put("isStrikethrough", true)
+                    if (sp.highlightColorArgb != null) put("highlightColorArgb", sp.highlightColorArgb)
+                    if (sp.textColorArgb != null) put("textColorArgb", sp.textColorArgb)
+                    if (sp.fontSizeSp != null) put("fontSizeSp", sp.fontSizeSp.toDouble())
+                    if (!sp.fontStyleId.isNullOrBlank()) put("fontStyleId", sp.fontStyleId)
+                    if (sp.headingLevel > 0) put("headingLevel", sp.headingLevel)
+                    if (sp.isQuote) put("isQuote", true)
+                    if (sp.isCode) put("isCode", true)
+                    if (!sp.linkUrl.isNullOrBlank()) put("linkUrl", sp.linkUrl)
+                })
+            }
+            put("richSpans", richSpansArr)
+            put("bodyFontStyle", note.bodyFontStyle)
+            put("bodyFontSizeSp", note.bodyFontSizeSp.toDouble())
+            if (note.bodyTextColorArgb != null) put("bodyTextColorArgb", note.bodyTextColorArgb)
+            put("bodyTextAlign", note.bodyTextAlign)
         }
     }
 
@@ -584,6 +611,32 @@ class NotesRepository(context: Context) {
             }
         }
 
+        val richSpans = mutableListOf<RichTextSpan>()
+        val richSpansArr = obj.optJSONArray("richSpans")
+        if (richSpansArr != null) {
+            for (i in 0 until richSpansArr.length()) {
+                val s = richSpansArr.optJSONObject(i) ?: continue
+                richSpans.add(
+                    RichTextSpan(
+                        start = s.optInt("start", 0),
+                        end = s.optInt("end", 0),
+                        isBold = s.optBoolean("isBold", false),
+                        isItalic = s.optBoolean("isItalic", false),
+                        isUnderline = s.optBoolean("isUnderline", false),
+                        isStrikethrough = s.optBoolean("isStrikethrough", false),
+                        highlightColorArgb = if (s.has("highlightColorArgb")) s.optLong("highlightColorArgb") else null,
+                        textColorArgb = if (s.has("textColorArgb")) s.optLong("textColorArgb") else null,
+                        fontSizeSp = if (s.has("fontSizeSp")) s.optDouble("fontSizeSp").toFloat() else null,
+                        fontStyleId = s.optString("fontStyleId", "").ifBlank { null },
+                        headingLevel = s.optInt("headingLevel", 0),
+                        isQuote = s.optBoolean("isQuote", false),
+                        isCode = s.optBoolean("isCode", false),
+                        linkUrl = s.optString("linkUrl", "").ifBlank { null }
+                    )
+                )
+            }
+        }
+
         return Note(
             id = obj.optString("id", UUID.randomUUID().toString()),
             title = obj.optString("title", ""),
@@ -607,6 +660,11 @@ class NotesRepository(context: Context) {
             attachments = attachments,
             versions = versions,
             activityLog = logs,
+            richSpans = richSpans,
+            bodyFontStyle = obj.optString("bodyFontStyle", EditorFontStyle.SANS.id),
+            bodyFontSizeSp = obj.optDouble("bodyFontSizeSp", 16.0).toFloat(),
+            bodyTextColorArgb = if (obj.has("bodyTextColorArgb")) obj.optLong("bodyTextColorArgb") else null,
+            bodyTextAlign = obj.optString("bodyTextAlign", "start"),
             createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
             updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
         )

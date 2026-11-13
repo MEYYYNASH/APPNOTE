@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Note,
   NoteColorId,
@@ -7,6 +7,7 @@ import {
   ChecklistItem,
   AttachmentType,
   FolderItem,
+  EditorFontStyleId,
 } from '../types/note';
 import {
   ArrowLeft,
@@ -22,7 +23,6 @@ import {
   Crop,
   PenTool,
   History,
-  Copy,
   Trash2,
   Plus,
   X,
@@ -35,9 +35,6 @@ import {
   Italic,
   Underline,
   Strikethrough,
-  Heading1,
-  Heading2,
-  Heading3,
   List,
   ListOrdered,
   Quote,
@@ -56,6 +53,11 @@ import {
   Download,
   RotateCcw,
   RotateCw,
+  Highlighter,
+  Palette,
+  Type as TypeIcon,
+  RemoveFormatting,
+  ALargeSmall,
 } from 'lucide-react';
 import { playBase64Audio, stopActiveAudio } from '../utils/audio';
 
@@ -75,7 +77,8 @@ interface NoteEditorPaneProps {
     tags: string[],
     folder: string,
     color: NoteColorId,
-    isPinned: boolean
+    isPinned: boolean,
+    extraRich?: Partial<Pick<Note, 'richHtml' | 'bodyFontStyle' | 'bodyTextColor' | 'bodyTextSize' | 'bodyTextAlign'>>
   ) => void;
   onDeleteNote: () => void;
   onDuplicateNote: () => void;
@@ -92,6 +95,165 @@ interface NoteEditorPaneProps {
   onShowToast: (msg: string) => void;
 }
 
+const FONT_STYLE_OPTIONS: {
+  id: EditorFontStyleId;
+  labelEn: string;
+  labelKm: string;
+  cssFamily: string;
+}[] = [
+  { id: 'sans', labelEn: 'Modern Sans', labelKm: 'អក្សរទំនើប', cssFamily: "'Figtree', system-ui, sans-serif" },
+  { id: 'serif', labelEn: 'Editorial Serif', labelKm: 'អក្សរកាសែត', cssFamily: "'Playfair Display', Georgia, serif" },
+  { id: 'mono', labelEn: 'Code Mono', labelKm: 'អក្សរកូដ', cssFamily: "'Roboto Mono', 'JetBrains Mono', monospace" },
+  { id: 'handwritten', labelEn: 'Handwritten', labelKm: 'អក្សរសរសេរដៃ', cssFamily: "'Caveat', cursive" },
+  { id: 'geometric', labelEn: 'Geometric', labelKm: 'អក្សរធរណីមាត្រ', cssFamily: "'Space Grotesk', sans-serif" },
+];
+
+const PRESET_COLORS = [
+  '#FFFFFF',
+  '#E2E8F0',
+  '#0F172A',
+  '#38BDF8',
+  '#60A5FA',
+  '#A855F7',
+  '#EC4899',
+  '#F43F5E',
+  '#FB923C',
+  '#FACC15',
+  '#4ADE80',
+  '#2DD4BF',
+];
+
+function resolveFontCss(styleId?: EditorFontStyleId): string {
+  return FONT_STYLE_OPTIONS.find((f) => f.id === styleId)?.cssFamily || FONT_STYLE_OPTIONS[0].cssFamily;
+}
+
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function convertInlineMarkdownToHtml(text: string): string {
+  let out = escapeHtml(text);
+  out = out.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/==(.*?)==/g, '<mark style="background-color:#facc1555;padding:0 2px;border-radius:3px;">$1</mark>');
+  out = out.replace(/~~(.*?)~~/g, '<s>$1</s>');
+  out = out.replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/g, '<u>$1</u>');
+  out = out.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;">$1</a>');
+  return out;
+}
+
+function convertLegacyBodyToRichHtml(rawBody: string): { cleanBody: string; html: string } {
+  const cleanedRaw = rawBody.replace(/#st(ly|yl)e#/gi, '');
+  const lines = cleanedRaw.split('\n');
+  const htmlParts: string[] = [];
+  const cleanLines: string[] = [];
+  let inList: 'ul' | 'ol' | null = null;
+  let inCode = false;
+
+  const closeList = () => {
+    if (inList) {
+      htmlParts.push(`</${inList}>`);
+      inList = null;
+    }
+  };
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (trimmed.startsWith('```')) {
+      closeList();
+      if (!inCode) {
+        inCode = true;
+        htmlParts.push('<pre style="background:rgba(15,23,42,0.75);color:#22d3ee;padding:10px;border-radius:10px;font-family:monospace;">');
+      } else {
+        inCode = false;
+        htmlParts.push('</pre>');
+      }
+      continue;
+    }
+    if (inCode) {
+      cleanLines.push(rawLine);
+      htmlParts.push(`${escapeHtml(rawLine)}\n`);
+      continue;
+    }
+
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      const cells = trimmed.slice(1, -1).split('|').map((c) => c.trim());
+      if (cells.length > 0 && cells.every((c) => /^[:\-\s]+$/.test(c))) {
+        continue;
+      }
+      closeList();
+      cleanLines.push(cells.join(' • '));
+      htmlParts.push(`<p>${cells.map((c) => convertInlineMarkdownToHtml(c)).join(' &nbsp;•&nbsp; ')}</p>`);
+      continue;
+    }
+
+    if (trimmed.startsWith('### ')) {
+      closeList();
+      const text = trimmed.slice(4);
+      cleanLines.push(text);
+      htmlParts.push(`<h3>${convertInlineMarkdownToHtml(text)}</h3>`);
+    } else if (trimmed.startsWith('## ')) {
+      closeList();
+      const text = trimmed.slice(3);
+      cleanLines.push(text);
+      htmlParts.push(`<h2>${convertInlineMarkdownToHtml(text)}</h2>`);
+    } else if (trimmed.startsWith('# ')) {
+      closeList();
+      const text = trimmed.slice(2);
+      cleanLines.push(text);
+      htmlParts.push(`<h1>${convertInlineMarkdownToHtml(text)}</h1>`);
+    } else if (trimmed.startsWith('> ')) {
+      closeList();
+      const text = trimmed.slice(2);
+      cleanLines.push(text);
+      htmlParts.push(`<blockquote>${convertInlineMarkdownToHtml(text)}</blockquote>`);
+    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('• ')) {
+      const text = trimmed.slice(2);
+      cleanLines.push(`• ${text}`);
+      if (inList !== 'ul') {
+        closeList();
+        inList = 'ul';
+        htmlParts.push('<ul>');
+      }
+      htmlParts.push(`<li>${convertInlineMarkdownToHtml(text)}</li>`);
+    } else if (/^\d+\.\s/.test(trimmed)) {
+      const text = trimmed.replace(/^\d+\.\s/, '');
+      cleanLines.push(trimmed);
+      if (inList !== 'ol') {
+        closeList();
+        inList = 'ol';
+        htmlParts.push('<ol>');
+      }
+      htmlParts.push(`<li>${convertInlineMarkdownToHtml(text)}</li>`);
+    } else if (trimmed === '') {
+      closeList();
+      cleanLines.push('');
+      htmlParts.push('<p><br></p>');
+    } else {
+      closeList();
+      const strippedInline = rawLine
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/==(.*?)==/g, '$1')
+        .replace(/~~(.*?)~~/g, '$1')
+        .replace(/<\/?u>/g, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+      cleanLines.push(strippedInline);
+      htmlParts.push(`<p>${convertInlineMarkdownToHtml(rawLine)}</p>`);
+    }
+  }
+  closeList();
+  if (inCode) htmlParts.push('</pre>');
+
+  return {
+    cleanBody: cleanLines.join('\n'),
+    html: htmlParts.join(''),
+  };
+}
+
 export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   note,
   folders,
@@ -102,11 +264,9 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   onBack,
   onUpdateNote,
   onDeleteNote,
-  onDuplicateNote,
   onToggleMarkdown,
   onOpenReminderDialog,
   onOpenVoiceRecorder,
-  onOpenImageUpload,
   onOpenPhotoCrop,
   onOpenDrawingCanvas,
   onOpenScanner,
@@ -122,21 +282,21 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   const [isReadingMode, setIsReadingMode] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  // History Stack for Undo/Redo
-  const [historyStack, setHistoryStack] = useState<string[]>([]);
-  const [redoStack, setRedoStack] = useState<string[]>([]);
+  // Undo/Redo snapshots of { body, html }
+  const [historyStack, setHistoryStack] = useState<{ body: string; html: string }[]>([]);
+  const [redoStack, setRedoStack] = useState<{ body: string; html: string }[]>([]);
 
-  // Formatting state
-  const [textColor, setTextColor] = useState('#000000');
-  const [fontSize, setFontSize] = useState('16px');
-  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
+  // Modals: Custom Color Picker, Font Style Picker, Table, Link
+  const [showColorModal, setShowColorModal] = useState(false);
+  const [colorModalTab, setColorModalTab] = useState<'text' | 'highlight'>('text');
+  const [pickedColor, setPickedColor] = useState('#38BDF8');
 
-  // Table Modal
+  const [showFontModal, setShowFontModal] = useState(false);
+
   const [showTableModal, setShowTableModal] = useState(false);
   const [tableRows, setTableRows] = useState(3);
   const [tableCols, setTableCols] = useState(3);
 
-  // Hyperlink Modal
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkText, setLinkText] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
@@ -144,14 +304,107 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const savedRangeRef = useRef<Range | null>(null);
 
-  // Stop playback on unmount
   useEffect(() => {
     return () => {
       stopActiveAudio();
     };
   }, []);
+
+  // Load initial HTML & auto-migrate any legacy markdown when switching notes
+  useEffect(() => {
+    if (!note || note.isChecklist || isReadingMode || isMarkdownPreview) return;
+    const el = editorRef.current;
+    if (!el) return;
+
+    if (note.richHtml !== undefined) {
+      if (el.innerHTML !== note.richHtml) {
+        el.innerHTML = note.richHtml || '';
+      }
+      return;
+    }
+
+    const { cleanBody, html } = convertLegacyBodyToRichHtml(note.body || '');
+    el.innerHTML = html;
+    if (cleanBody !== note.body || html !== (note.richHtml || '')) {
+      onUpdateNote(
+        note.title,
+        cleanBody,
+        note.isChecklist,
+        note.checklist,
+        note.tags,
+        note.folder,
+        note.color,
+        note.isPinned,
+        { richHtml: html }
+      );
+    }
+    // Only run on note switch or mode switch back into edit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note?.id, note?.isChecklist, isReadingMode, isMarkdownPreview]);
+
+  const saveCurrentSelection = useCallback(() => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+    }
+  }, []);
+
+  const restoreSavedSelection = useCallback(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (savedRangeRef.current && sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+    }
+  }, []);
+
+  const pushSnapshot = useCallback(() => {
+    if (!note) return;
+    const currentHtml = editorRef.current?.innerHTML ?? note.richHtml ?? '';
+    setHistoryStack((prev) => [...prev.slice(-39), { body: note.body, html: currentHtml }]);
+    setRedoStack([]);
+  }, [note]);
+
+  const syncFromEditorDom = useCallback(() => {
+    if (!note || !editorRef.current) return;
+    const html = editorRef.current.innerHTML;
+    const plain = (editorRef.current.innerText || '').replace(/\u00A0/g, ' ');
+    onUpdateNote(
+      note.title,
+      plain,
+      note.isChecklist,
+      note.checklist,
+      note.tags,
+      note.folder,
+      note.color,
+      note.isPinned,
+      { richHtml: html }
+    );
+  }, [note, onUpdateNote]);
+
+  const execWysiwygCommand = (command: string, value?: string) => {
+    if (!note) return;
+    pushSnapshot();
+    restoreSavedSelection();
+    document.execCommand(command, false, value);
+    syncFromEditorDom();
+    saveCurrentSelection();
+  };
+
+  const toggleBlockFormat = (tag: 'H1' | 'H2' | 'H3' | 'BLOCKQUOTE') => {
+    if (!note) return;
+    pushSnapshot();
+    restoreSavedSelection();
+    const current = (document.queryCommandValue('formatBlock') || '').toUpperCase();
+    document.execCommand('formatBlock', false, current === tag ? 'P' : tag);
+    syncFromEditorDom();
+    saveCurrentSelection();
+  };
 
   if (!note) {
     return (
@@ -180,122 +433,158 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     ? Math.round((doneItems / note.checklist.length) * 100)
     : 0;
 
-  // Text formatting helpers for textarea insertion
-  const applyFormatting = (before: string, after = before, defaultText = 'text') => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = note.body.substring(start, end) || defaultText;
-    const replacement = `${before}${selected}${after}`;
-
-    // Push to undo stack
-    setHistoryStack((prev) => [...prev, note.body]);
-    setRedoStack([]);
-
-    const newBody = note.body.substring(0, start) + replacement + note.body.substring(end);
-    onUpdateNote(
-      note.title,
-      newBody,
-      note.isChecklist,
-      note.checklist,
-      note.tags,
-      note.folder,
-      note.color,
-      note.isPinned
-    );
-
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + before.length, start + before.length + selected.length);
-    }, 50);
-  };
+  const activeFontId: EditorFontStyleId = note.bodyFontStyle || 'sans';
+  const activeFontLabel = FONT_STYLE_OPTIONS.find((f) => f.id === activeFontId)?.labelEn || 'Sans';
+  const activeFontCss = resolveFontCss(activeFontId);
+  const activeTextSize = note.bodyTextSize || '16px';
+  const activeTextAlign = note.bodyTextAlign || 'left';
 
   const handleUndo = () => {
-    if (historyStack.length === 0) return;
+    if (historyStack.length === 0 || !note) return;
     const prev = historyStack[historyStack.length - 1];
-    setRedoStack((r) => [...r, note.body]);
+    const currentHtml = editorRef.current?.innerHTML ?? note.richHtml ?? '';
+    setRedoStack((r) => [...r, { body: note.body, html: currentHtml }]);
     setHistoryStack((h) => h.slice(0, -1));
+    if (editorRef.current) editorRef.current.innerHTML = prev.html;
     onUpdateNote(
       note.title,
-      prev,
+      prev.body,
       note.isChecklist,
       note.checklist,
       note.tags,
       note.folder,
       note.color,
-      note.isPinned
+      note.isPinned,
+      { richHtml: prev.html }
     );
   };
 
   const handleRedo = () => {
-    if (redoStack.length === 0) return;
+    if (redoStack.length === 0 || !note) return;
     const next = redoStack[redoStack.length - 1];
-    setHistoryStack((h) => [...h, note.body]);
+    const currentHtml = editorRef.current?.innerHTML ?? note.richHtml ?? '';
+    setHistoryStack((h) => [...h, { body: note.body, html: currentHtml }]);
     setRedoStack((r) => r.slice(0, -1));
+    if (editorRef.current) editorRef.current.innerHTML = next.html;
     onUpdateNote(
       note.title,
-      next,
+      next.body,
       note.isChecklist,
       note.checklist,
       note.tags,
       note.folder,
       note.color,
-      note.isPinned
+      note.isPinned,
+      { richHtml: next.html }
     );
   };
 
-  // Insert Table Markdown Grid
-  const handleInsertTable = () => {
-    let header = '|';
-    let divider = '|';
-    for (let c = 1; c <= tableCols; c++) {
-      header += ` Header ${c} |`;
-      divider += ' --- |';
-    }
-    let rowsStr = '';
-    for (let r = 1; r <= tableRows; r++) {
-      let row = '|';
-      for (let c = 1; c <= tableCols; c++) {
-        row += ` Item ${r},${c} |`;
+  const handleApplyCustomColor = (hexColor: string | null, wholeNote = false) => {
+    if (colorModalTab === 'text') {
+      if (wholeNote || !savedRangeRef.current || savedRangeRef.current.collapsed) {
+        onUpdateNote(
+          note.title,
+          note.body,
+          note.isChecklist,
+          note.checklist,
+          note.tags,
+          note.folder,
+          note.color,
+          note.isPinned,
+          { bodyTextColor: hexColor || undefined }
+        );
+      } else {
+        pushSnapshot();
+        restoreSavedSelection();
+        if (hexColor) {
+          document.execCommand('foreColor', false, hexColor);
+        } else {
+          document.execCommand('removeFormat', false);
+        }
+        syncFromEditorDom();
       }
-      rowsStr += `\n${row}`;
+    } else {
+      pushSnapshot();
+      restoreSavedSelection();
+      document.execCommand('hiliteColor', false, hexColor ? `${hexColor}55` : 'transparent');
+      syncFromEditorDom();
     }
-    const tableMarkdown = `\n\n${header}\n${divider}${rowsStr}\n\n`;
-    applyFormatting('', '', tableMarkdown);
+    setShowColorModal(false);
+  };
+
+  const handleSelectFontStyle = (styleId: EditorFontStyleId, applyScope: 'selection' | 'note') => {
+    if (applyScope === 'note' || !savedRangeRef.current || savedRangeRef.current.collapsed) {
+      onUpdateNote(
+        note.title,
+        note.body,
+        note.isChecklist,
+        note.checklist,
+        note.tags,
+        note.folder,
+        note.color,
+        note.isPinned,
+        { bodyFontStyle: styleId }
+      );
+    } else {
+      const css = resolveFontCss(styleId);
+      pushSnapshot();
+      restoreSavedSelection();
+      document.execCommand('fontName', false, css);
+      syncFromEditorDom();
+    }
+    setShowFontModal(false);
+  };
+
+  const handleInsertInlineCode = () => {
+    pushSnapshot();
+    restoreSavedSelection();
+    const sel = window.getSelection();
+    const selectedText = sel && !sel.isCollapsed ? sel.toString() : 'code snippet';
+    const html = `<code style="background:rgba(56,189,248,0.16);color:#38bdf8;padding:2px 6px;border-radius:6px;font-family:'Roboto Mono',monospace;">${escapeHtml(selectedText)}</code>&nbsp;`;
+    document.execCommand('insertHTML', false, html);
+    syncFromEditorDom();
+  };
+
+  const handleInsertTable = () => {
+    let html = '<table style="width:100%;border-collapse:collapse;margin:8px 0;"><thead><tr>';
+    for (let c = 1; c <= tableCols; c++) {
+      html += `<th style="border:1px solid rgba(148,163,184,0.35);padding:6px 10px;text-align:left;background:rgba(59,130,246,0.12);">Column ${c}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    for (let r = 1; r <= tableRows; r++) {
+      html += '<tr>';
+      for (let c = 1; c <= tableCols; c++) {
+        html += `<td style="border:1px solid rgba(148,163,184,0.28);padding:6px 10px;">Item ${r}.${c}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table><p><br></p>';
+    pushSnapshot();
+    restoreSavedSelection();
+    document.execCommand('insertHTML', false, html);
+    syncFromEditorDom();
     setShowTableModal(false);
     onShowToast('Table inserted!');
   };
 
-  // Insert Hyperlink
   const handleInsertLink = () => {
     if (!linkUrl) return;
-    const text = linkText || linkUrl;
-    applyFormatting('', '', `[${text}](${linkUrl})`);
+    const cleanUrl = linkUrl.trim().startsWith('http') ? linkUrl.trim() : `https://${linkUrl.trim()}`;
+    const label = linkText.trim() || cleanUrl.replace(/^https?:\/\//, '');
+    const html = `<a href="${escapeHtml(cleanUrl)}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;font-weight:600;">${escapeHtml(label)}</a>&nbsp;`;
+    pushSnapshot();
+    restoreSavedSelection();
+    document.execCommand('insertHTML', false, html);
+    syncFromEditorDom();
     setShowLinkModal(false);
     setLinkText('');
     setLinkUrl('');
   };
 
-  // Handlers for updating note fields
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onUpdateNote(
       e.target.value,
       note.body,
-      note.isChecklist,
-      note.checklist,
-      note.tags,
-      note.folder,
-      note.color,
-      note.isPinned
-    );
-  };
-
-  const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onUpdateNote(
-      note.title,
-      e.target.value,
       note.isChecklist,
       note.checklist,
       note.tags,
@@ -336,7 +625,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
       const lines = note.body.split('\n').filter((l) => l.trim().length > 0);
       const items: ChecklistItem[] = lines.map((l, idx) => ({
         id: `c_${Date.now()}_${idx}`,
-        text: l.replace(/^[*-]\s+/, '').trim(),
+        text: l.replace(/^[*•-]\s+/, '').trim(),
         isDone: false,
       }));
       onUpdateNote(
@@ -347,15 +636,16 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
         note.tags,
         note.folder,
         note.color,
-        note.isPinned
+        note.isPinned,
+        { richHtml: '' }
       );
     } else {
-      const body = note.checklist.map((i) => (i.isDone ? `[x] ${i.text}` : `- [ ] ${i.text}`)).join('\n');
-      onUpdateNote(note.title, body, false, [], note.tags, note.folder, note.color, note.isPinned);
+      const body = note.checklist.map((i) => (i.isDone ? `[x] ${i.text}` : `• ${i.text}`)).join('\n');
+      const html = `<ul>${note.checklist.map((i) => `<li>${i.isDone ? '<s>' : ''}${escapeHtml(i.text)}${i.isDone ? '</s>' : ''}</li>`).join('')}</ul>`;
+      onUpdateNote(note.title, body, false, [], note.tags, note.folder, note.color, note.isPinned, { richHtml: html });
     }
   };
 
-  // Checklist item actions
   const handleCheckItemToggle = (itemId: string) => {
     const next = note.checklist.map((item) =>
       item.id === itemId ? { ...item, isDone: !item.isDone } : item
@@ -400,19 +690,6 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     }
   };
 
-  const handleCopyNote = () => {
-    const text =
-      (note.title ? `${note.title}\n\n` : '') +
-      (note.isChecklist
-        ? note.checklist.map((i) => (i.isDone ? '[x] ' : '[ ] ') + i.text).join('\n')
-        : note.body);
-
-    navigator.clipboard.writeText(text).then(
-      () => onShowToast('Copied to clipboard'),
-      () => onShowToast("Couldn't copy text.")
-    );
-  };
-
   const handleAudioPlayToggle = (attachmentId: string, b64: string) => {
     if (playingAudioId === attachmentId) {
       stopActiveAudio();
@@ -432,7 +709,6 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     }
   };
 
-  // Video and PDF file upload handlers
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -457,115 +733,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
     e.target.value = '';
   };
 
-  // Markdown renderer supporting Tables, Code blocks, Lists, and Links
-  const renderMarkdown = (text: string) => {
-    const lines = text.split('\n');
-    let inTable = false;
-    let tableRowsData: string[][] = [];
-
-    return (
-      <div className="prose dark:prose-invert max-w-none text-sm space-y-2 p-6 font-normal">
-        {lines.map((line, idx) => {
-          // Table parsing
-          if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
-            const cells = line
-              .split('|')
-              .slice(1, -1)
-              .map((c) => c.trim());
-            if (cells.some((c) => c.includes('---'))) {
-              return null; // separator row
-            }
-            return (
-              <div key={idx} className="overflow-x-auto my-1">
-                <table className="w-full border-collapse border border-white/30 text-xs rounded-xl overflow-hidden glass-card">
-                  <tbody>
-                    <tr className="border-b border-white/20">
-                      {cells.map((cell, cIdx) => (
-                        <td key={cIdx} className="p-2 border-r border-white/20 font-medium">
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            );
-          }
-
-          if (line.startsWith('# ')) {
-            return (
-              <h1 key={idx} className="text-2xl font-bold border-b border-white/20 pb-1 mt-4">
-                {line.slice(2)}
-              </h1>
-            );
-          }
-          if (line.startsWith('## ')) {
-            return (
-              <h2 key={idx} className="text-xl font-bold mt-3">
-                {line.slice(3)}
-              </h2>
-            );
-          }
-          if (line.startsWith('### ')) {
-            return (
-              <h3 key={idx} className="text-lg font-semibold mt-2">
-                {line.slice(4)}
-              </h3>
-            );
-          }
-          if (line.startsWith('> ')) {
-            return (
-              <blockquote key={idx} className="pl-3 border-l-4 border-blue-500 italic my-2 text-slate-500">
-                {line.slice(2)}
-              </blockquote>
-            );
-          }
-          if (line.startsWith('```')) {
-            return (
-              <pre key={idx} className="p-3 rounded-xl bg-slate-900 text-cyan-400 font-mono text-xs my-2 overflow-x-auto">
-                {line.slice(3)}
-              </pre>
-            );
-          }
-          if (line.startsWith('- ') || line.startsWith('* ')) {
-            return (
-              <li key={idx} className="ml-5 list-disc">
-                {line.slice(2)}
-              </li>
-            );
-          }
-          if (/^\d+\.\s/.test(line)) {
-            return (
-              <li key={idx} className="ml-5 list-decimal">
-                {line.replace(/^\d+\.\s/, '')}
-              </li>
-            );
-          }
-          if (line.trim() === '') {
-            return <div key={idx} className="h-2" />;
-          }
-
-          // Link regex replace
-          const linkMatch = line.match(/\[(.*?)\]\((.*?)\)/);
-          if (linkMatch) {
-            const [full, label, url] = linkMatch;
-            const parts = line.split(full);
-            return (
-              <p key={idx}>
-                {parts[0]}
-                <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline font-semibold">
-                  {label}
-                </a>
-                {parts[1]}
-              </p>
-            );
-          }
-
-          return <p key={idx}>{line}</p>;
-        })}
-      </div>
-    );
-  };
+  const previewHtml = note.richHtml ?? convertLegacyBodyToRichHtml(note.body || '').html;
 
   return (
     <main
@@ -574,18 +742,23 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
       }`}
     >
       {/* Hidden file inputs */}
-      <input type="file" ref={fileInputRef} accept="image/*" onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const b64 = (reader.result as string).replace(/^data:image\/\w+;base64,/, '');
-          onOpenPhotoCrop(b64);
-        };
-        reader.readAsDataURL(file);
-        e.target.value = '';
-      }} className="hidden" />
-
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const b64 = (reader.result as string).replace(/^data:image\/\w+;base64,/, '');
+            onOpenPhotoCrop(b64);
+          };
+          reader.readAsDataURL(file);
+          e.target.value = '';
+        }}
+        className="hidden"
+      />
       <input type="file" ref={videoInputRef} accept="video/*" onChange={handleVideoUpload} className="hidden" />
       <input type="file" ref={pdfInputRef} accept=".pdf,application/pdf" onChange={handlePdfUpload} className="hidden" />
 
@@ -665,11 +838,11 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
           <CheckSquare size={14} />
         </button>
 
-        {/* Markdown Preview Toggle */}
+        {/* Rich View Toggle */}
         {!note.isChecklist && (
           <button
             onClick={onToggleMarkdown}
-            title={isMarkdownPreview ? strings.editMode : strings.markdownPreview}
+            title={isMarkdownPreview ? strings.editMode : 'Preview'}
             className={`w-8 h-8 rounded-full glass-field flex items-center justify-center transition-all flex-none ${
               isMarkdownPreview ? 'bg-purple-500 text-white shadow-sm' : 'hover:opacity-80'
             }`}
@@ -720,10 +893,12 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
         </button>
       </div>
 
-      {/* Advanced Rich Text Formatting Toolbar (Visible in edit mode, hidden in reading mode or checklists) */}
+      {/* Live WYSIWYG Rich Formatting Bar (No literal markdown syntax inserted) */}
       {!isReadingMode && !note.isChecklist && !isMarkdownPreview && (
-        <div className="flex items-center gap-1 px-3 py-1.5 border-b border-white/15 bg-white/30 dark:bg-slate-900/30 overflow-x-auto scrollbar-none flex-none text-xs">
-          {/* Undo / Redo */}
+        <div
+          onMouseDown={(e) => e.preventDefault()}
+          className="flex items-center gap-1 px-3 py-1.5 border-b border-white/15 bg-white/30 dark:bg-slate-900/30 overflow-x-auto scrollbar-none flex-none text-xs"
+        >
           <button
             onClick={handleUndo}
             disabled={historyStack.length === 0}
@@ -743,62 +918,162 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
 
           <span className="w-px h-4 bg-white/20 mx-1" />
 
-          {/* Bold, Italic, Underline, Strikethrough */}
-          <button onClick={() => applyFormatting('**', '**', 'bold text')} title="Bold" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+          <button onClick={() => execWysiwygCommand('bold')} title="Bold" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
             <Bold size={13} />
           </button>
-          <button onClick={() => applyFormatting('*', '*', 'italic text')} title="Italic" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+          <button onClick={() => execWysiwygCommand('italic')} title="Italic" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
             <Italic size={13} />
           </button>
-          <button onClick={() => applyFormatting('<u>', '</u>', 'underlined text')} title="Underline" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+          <button onClick={() => execWysiwygCommand('underline')} title="Underline" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
             <Underline size={13} />
           </button>
-          <button onClick={() => applyFormatting('~~', '~~', 'strikethrough text')} title="Strikethrough" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+          <button onClick={() => execWysiwygCommand('strikeThrough')} title="Strikethrough" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
             <Strikethrough size={13} />
+          </button>
+          <button
+            onClick={() => execWysiwygCommand('hiliteColor', '#FACC1555')}
+            title="Highlight"
+            className="px-2 h-7 rounded-lg glass-field flex items-center gap-1 font-semibold"
+          >
+            <Highlighter size={12} />
+            <span>Highlight</span>
           </button>
 
           <span className="w-px h-4 bg-white/20 mx-1" />
 
-          {/* Headings */}
-          <button onClick={() => applyFormatting('# ', '', 'Heading 1')} title="Heading 1" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center font-bold text-xs">
+          <button onClick={() => toggleBlockFormat('H1')} title="Heading 1" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center font-bold">
             H1
           </button>
-          <button onClick={() => applyFormatting('## ', '', 'Heading 2')} title="Heading 2" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center font-bold text-xs">
+          <button onClick={() => toggleBlockFormat('H2')} title="Heading 2" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center font-bold">
             H2
           </button>
-          <button onClick={() => applyFormatting('### ', '', 'Heading 3')} title="Heading 3" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center font-bold text-xs">
+          <button onClick={() => toggleBlockFormat('H3')} title="Heading 3" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center font-bold">
             H3
           </button>
 
           <span className="w-px h-4 bg-white/20 mx-1" />
 
-          {/* Lists & Blockquote & Code */}
-          <button onClick={() => applyFormatting('- ', '', 'List item')} title="Bullet List" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
-            <List size={13} />
+          {/* Font Style Picker Button (Real Typography, Never #style#) */}
+          <button
+            onClick={() => {
+              saveCurrentSelection();
+              setShowFontModal(true);
+            }}
+            title="Font Style"
+            className="px-2.5 h-7 rounded-lg glass-field flex items-center gap-1.5 font-semibold"
+          >
+            <TypeIcon size={12} />
+            <span>{activeFontLabel.split(' ').pop()}</span>
           </button>
-          <button onClick={() => applyFormatting('1. ', '', 'Numbered item')} title="Numbered List" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
-            <ListOrdered size={13} />
-          </button>
-          <button onClick={() => applyFormatting('> ', '', 'Quote text')} title="Blockquote" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
-            <Quote size={13} />
-          </button>
-          <button onClick={() => applyFormatting('```\n', '\n```', 'code block')} title="Code Block" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
-            <Code size={13} />
+
+          {/* Custom Color Picker Button (No Random Colors) */}
+          <button
+            onClick={() => {
+              saveCurrentSelection();
+              setPickedColor(note.bodyTextColor || '#38BDF8');
+              setShowColorModal(true);
+            }}
+            title="Custom Text & Highlight Color"
+            className="px-2.5 h-7 rounded-lg glass-field flex items-center gap-1.5 font-semibold"
+          >
+            <span
+              className="w-3 h-3 rounded-full border border-white/70"
+              style={{ backgroundColor: note.bodyTextColor || '#38BDF8' }}
+            />
+            <Palette size={12} />
+            <span>Color</span>
           </button>
 
           <span className="w-px h-4 bg-white/20 mx-1" />
 
-          {/* Table & Hyperlink */}
-          <button onClick={() => setShowTableModal(true)} title="Insert Table" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+          <button onClick={() => execWysiwygCommand('insertUnorderedList')} title="Bullet List" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <List size={13} />
+          </button>
+          <button onClick={() => execWysiwygCommand('insertOrderedList')} title="Numbered List" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <ListOrdered size={13} />
+          </button>
+          <button onClick={() => toggleBlockFormat('BLOCKQUOTE')} title="Quote" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Quote size={13} />
+          </button>
+          <button onClick={handleInsertInlineCode} title="Code Snippet" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+            <Code size={13} />
+          </button>
+
+          <button
+            onClick={() => {
+              saveCurrentSelection();
+              setShowTableModal(true);
+            }}
+            title="Insert Table"
+            className="w-7 h-7 rounded-lg glass-field flex items-center justify-center"
+          >
             <TableIcon size={13} />
           </button>
-          <button onClick={() => setShowLinkModal(true)} title="Insert Link" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
+          <button
+            onClick={() => {
+              saveCurrentSelection();
+              const selText = window.getSelection()?.toString() || '';
+              if (selText) setLinkText(selText);
+              setShowLinkModal(true);
+            }}
+            title="Insert Link"
+            className="w-7 h-7 rounded-lg glass-field flex items-center justify-center"
+          >
             <Link size={13} />
           </button>
 
           <span className="w-px h-4 bg-white/20 mx-1" />
 
-          {/* Media Attachment shortcuts */}
+          {/* Text Size */}
+          <button
+            onClick={() => {
+              const order = ['14px', '16px', '19px', '22px'];
+              const nextSize = order[(order.indexOf(activeTextSize) + 1) % order.length];
+              onUpdateNote(note.title, note.body, note.isChecklist, note.checklist, note.tags, note.folder, note.color, note.isPinned, {
+                bodyTextSize: nextSize,
+              });
+            }}
+            title="Text Size"
+            className="px-2 h-7 rounded-lg glass-field flex items-center gap-1 font-semibold"
+          >
+            <ALargeSmall size={13} />
+            <span>{activeTextSize}</span>
+          </button>
+
+          {/* Alignment */}
+          <button
+            onClick={() => {
+              const order: ('left' | 'center' | 'right')[] = ['left', 'center', 'right'];
+              const nextAlign = order[(order.indexOf(activeTextAlign) + 1) % order.length];
+              onUpdateNote(note.title, note.body, note.isChecklist, note.checklist, note.tags, note.folder, note.color, note.isPinned, {
+                bodyTextAlign: nextAlign,
+              });
+            }}
+            title="Alignment"
+            className="w-7 h-7 rounded-lg glass-field flex items-center justify-center"
+          >
+            {activeTextAlign === 'center' ? <AlignCenter size={13} /> : activeTextAlign === 'right' ? <AlignRight size={13} /> : <AlignLeft size={13} />}
+          </button>
+
+          {/* Clear Formatting */}
+          <button
+            onClick={() => {
+              execWysiwygCommand('removeFormat');
+              onUpdateNote(note.title, note.body, note.isChecklist, note.checklist, note.tags, note.folder, note.color, note.isPinned, {
+                bodyFontStyle: 'sans',
+                bodyTextColor: undefined,
+                bodyTextSize: '16px',
+                bodyTextAlign: 'left',
+              });
+            }}
+            title="Clear Formatting"
+            className="w-7 h-7 rounded-lg glass-field flex items-center justify-center"
+          >
+            <RemoveFormatting size={13} />
+          </button>
+
+          <span className="w-px h-4 bg-white/20 mx-1" />
+
           <button onClick={() => fileInputRef.current?.click()} title="Insert Image" className="w-7 h-7 rounded-lg glass-field flex items-center justify-center">
             <ImageIcon size={13} />
           </button>
@@ -819,7 +1094,6 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
 
       {/* Editor Content Area */}
       <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-        {/* Title Input */}
         <div className="px-6 pt-5 pb-1">
           <input
             type="text"
@@ -833,7 +1107,6 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
           />
         </div>
 
-        {/* Metadata & Word/Char Counter Bar */}
         <div className="flex items-center gap-3 px-6 py-1 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
           {note.isChecklist ? (
             <div className="flex items-center gap-2 flex-1 max-w-xs">
@@ -853,7 +1126,6 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
             </span>
           )}
 
-          {/* Active Reminder Pill */}
           {note.reminderAt && (
             <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 font-semibold ml-auto">
               <Clock size={11} />
@@ -862,7 +1134,6 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
           )}
         </div>
 
-        {/* Folder & Tags Sub-row */}
         <div className="flex items-center gap-2 px-6 py-2 text-xs flex-wrap">
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl glass-field flex-1 max-w-[200px]">
             <Folder size={13} className="text-blue-500 flex-none" />
@@ -917,7 +1188,6 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
           </div>
         </div>
 
-        {/* Attachments Section */}
         {note.attachments.length > 0 && (
           <div className="px-6 py-2 flex flex-col gap-2">
             {note.attachments.map((att) => {
@@ -998,7 +1268,6 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                 );
               }
 
-              // Image / Scan / Drawing attachment
               const prefix = att.dataBase64.startsWith('data:') ? '' : 'data:image/png;base64,';
               return (
                 <div
@@ -1037,7 +1306,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
           </div>
         )}
 
-        {/* Main Editor: Checklist, Reading View, Markdown, or Textarea */}
+        {/* Main Editor: Checklist, Rich Reading Preview, or Live WYSIWYG Rich Editor */}
         <div className="flex-1 px-6 py-2 flex flex-col min-h-[350px]">
           {note.isChecklist ? (
             <div className="space-y-1.5 pb-12">
@@ -1091,18 +1360,211 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
               )}
             </div>
           ) : isReadingMode || isMarkdownPreview ? (
-            renderMarkdown(note.body)
+            <div
+              style={{
+                fontFamily: activeFontCss,
+                fontSize: activeTextSize,
+                textAlign: activeTextAlign,
+                color: note.bodyTextColor || undefined,
+              }}
+              className="prose dark:prose-invert max-w-none leading-relaxed py-2 [&_h1]:text-2xl [&_h1]:font-extrabold [&_h2]:text-xl [&_h2]:font-bold [&_h3]:text-lg [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-500 [&_blockquote]:pl-3 [&_blockquote]:italic"
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
           ) : (
-            <textarea
-              ref={textareaRef}
-              value={note.body}
-              onChange={handleBodyChange}
-              placeholder={strings.bodyPlaceholder}
-              className="w-full flex-1 bg-transparent resize-none outline-none text-sm sm:text-base leading-relaxed placeholder:text-slate-400 min-h-[400px]"
+            <div
+              ref={editorRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={syncFromEditorDom}
+              onKeyUp={saveCurrentSelection}
+              onMouseUp={saveCurrentSelection}
+              onBlur={saveCurrentSelection}
+              data-placeholder={strings.bodyPlaceholder}
+              style={{
+                fontFamily: activeFontCss,
+                fontSize: activeTextSize,
+                textAlign: activeTextAlign,
+                color: note.bodyTextColor || undefined,
+              }}
+              className="w-full flex-1 outline-none leading-relaxed min-h-[400px] select-text empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 [&_h1]:text-2xl [&_h1]:font-extrabold [&_h1]:my-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:my-1.5 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-500 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:my-1.5"
             />
           )}
         </div>
       </div>
+
+      {/* Custom Color Picker Modal (Text Color & Highlight Color) */}
+      {showColorModal && (
+        <div
+          onClick={() => setShowColorModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl glass-panel-elevated p-5 flex flex-col gap-3.5 shadow-2xl border border-white/40"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-base">
+                <Palette size={17} className="text-blue-500" />
+                <span>{isKhmer ? 'ជ្រើសរើសពណ៌ផ្ទាល់ខ្លួន' : 'Custom Text & Highlight Color'}</span>
+              </div>
+              <button onClick={() => setShowColorModal(false)} className="w-7 h-7 rounded-full glass-field flex items-center justify-center">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <button
+                onClick={() => setColorModalTab('text')}
+                className={`py-2 rounded-xl font-bold transition-all ${
+                  colorModalTab === 'text' ? 'bg-blue-600 text-white shadow' : 'glass-field'
+                }`}
+              >
+                Text Color
+              </button>
+              <button
+                onClick={() => setColorModalTab('highlight')}
+                className={`py-2 rounded-xl font-bold transition-all ${
+                  colorModalTab === 'highlight' ? 'bg-blue-600 text-white shadow' : 'glass-field'
+                }`}
+              >
+                Highlight Color
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleApplyCustomColor(null, true)}
+                className="w-8 h-8 rounded-full glass-field border border-white/30 flex items-center justify-center text-xs font-bold"
+                title="Reset to default"
+              >
+                <RemoveFormatting size={13} />
+              </button>
+              {PRESET_COLORS.map((hex) => (
+                <button
+                  key={hex}
+                  onClick={() => setPickedColor(hex)}
+                  style={{ backgroundColor: hex }}
+                  className={`w-8 h-8 rounded-full transition-transform ${
+                    pickedColor.toUpperCase() === hex.toUpperCase()
+                      ? 'ring-2 ring-white scale-110 shadow'
+                      : 'border border-white/30'
+                  }`}
+                />
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2.5 text-xs">
+              <input
+                type="color"
+                value={pickedColor}
+                onChange={(e) => setPickedColor(e.target.value.toUpperCase())}
+                className="w-11 h-9 rounded-xl cursor-pointer bg-transparent border-0"
+              />
+              <input
+                type="text"
+                value={pickedColor}
+                onChange={(e) => setPickedColor(e.target.value)}
+                placeholder="#38BDF8"
+                className="flex-1 p-2 rounded-xl glass-field outline-none font-mono font-bold"
+              />
+              <span
+                className="px-3 py-1.5 rounded-xl font-semibold text-xs"
+                style={{
+                  color: colorModalTab === 'text' ? pickedColor : undefined,
+                  backgroundColor: colorModalTab === 'highlight' ? `${pickedColor}55` : 'rgba(255,255,255,0.08)',
+                }}
+              >
+                Sample
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-1">
+              {colorModalTab === 'text' ? (
+                <>
+                  <button
+                    onClick={() => handleApplyCustomColor(pickedColor, false)}
+                    className="py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow"
+                  >
+                    Apply to Selection
+                  </button>
+                  <button
+                    onClick={() => handleApplyCustomColor(pickedColor, true)}
+                    className="py-2 rounded-xl glass-field text-xs font-bold"
+                  >
+                    Apply to Note
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => handleApplyCustomColor(null)}
+                    className="py-2 rounded-xl glass-field text-xs font-semibold"
+                  >
+                    Clear Highlight
+                  </button>
+                  <button
+                    onClick={() => handleApplyCustomColor(pickedColor)}
+                    className="py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow"
+                  >
+                    Apply Highlight
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Font Style Picker Modal */}
+      {showFontModal && (
+        <div
+          onClick={() => setShowFontModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl glass-panel-elevated p-5 flex flex-col gap-3 shadow-2xl border border-white/40"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-base">
+                <TypeIcon size={17} className="text-blue-500" />
+                <span>{isKhmer ? 'រចនាប័ទ្មពុម្ពអក្សរ' : 'Font Style'}</span>
+              </div>
+              <button onClick={() => setShowFontModal(false)} className="w-7 h-7 rounded-full glass-field flex items-center justify-center">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+              {FONT_STYLE_OPTIONS.map((font) => {
+                const isSelected = activeFontId === font.id;
+                const hasSelection = Boolean(savedRangeRef.current && !savedRangeRef.current.collapsed);
+                return (
+                  <button
+                    key={font.id}
+                    onClick={() => handleSelectFontStyle(font.id, hasSelection ? 'selection' : 'note')}
+                    className={`w-full text-left p-3 rounded-2xl border transition-all flex items-center justify-between ${
+                      isSelected
+                        ? 'bg-blue-500/15 border-blue-500/50'
+                        : 'glass-field border-white/20 hover:bg-white/10'
+                    }`}
+                  >
+                    <div>
+                      <div style={{ fontFamily: font.cssFamily }} className="font-bold text-base">
+                        {isKhmer ? font.labelKm : font.labelEn}
+                      </div>
+                      <div style={{ fontFamily: font.cssFamily }} className="text-xs opacity-70">
+                        The quick glass note captures every idea.
+                      </div>
+                    </div>
+                    {isSelected && <Check size={16} className="text-blue-500 flex-none" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Insert Table Modal */}
       {showTableModal && (
@@ -1117,7 +1579,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                   min="1"
                   max="20"
                   value={tableRows}
-                  onChange={(e) => setTableRows(parseInt(e.target.value) || 2)}
+                  onChange={(e) => setTableRows(parseInt(e.target.value, 10) || 2)}
                   className="p-2 rounded-xl glass-field outline-none font-bold"
                 />
               </label>
@@ -1128,7 +1590,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                   min="1"
                   max="10"
                   value={tableCols}
-                  onChange={(e) => setTableCols(parseInt(e.target.value) || 2)}
+                  onChange={(e) => setTableCols(parseInt(e.target.value, 10) || 2)}
                   className="p-2 rounded-xl glass-field outline-none font-bold"
                 />
               </label>

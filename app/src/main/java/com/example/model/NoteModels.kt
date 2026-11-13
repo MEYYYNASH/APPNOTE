@@ -125,6 +125,55 @@ data class NoteFolder(
     val updatedAt: Long = System.currentTimeMillis()
 )
 
+enum class EditorFontStyle(
+    val id: String,
+    val labelEn: String,
+    val labelKm: String
+) {
+    SANS("sans", "Modern Sans", "អក្សរទំនើប"),
+    SERIF("serif", "Editorial Serif", "អក្សរកាសែត"),
+    MONO("mono", "Code Mono", "អក្សរកូដ"),
+    HANDWRITTEN("handwritten", "Handwritten", "អក្សរសរសេរដៃ"),
+    GEOMETRIC("geometric", "Geometric", "អក្សរធរណីមាត្រ");
+
+    companion object {
+        fun fromId(id: String): EditorFontStyle =
+            entries.find { it.id.equals(id, ignoreCase = true) } ?: SANS
+    }
+}
+
+data class RichTextSpan(
+    val start: Int,
+    val end: Int,
+    val isBold: Boolean = false,
+    val isItalic: Boolean = false,
+    val isUnderline: Boolean = false,
+    val isStrikethrough: Boolean = false,
+    val highlightColorArgb: Long? = null,
+    val textColorArgb: Long? = null,
+    val fontSizeSp: Float? = null,
+    val fontStyleId: String? = null,
+    val headingLevel: Int = 0,
+    val isQuote: Boolean = false,
+    val isCode: Boolean = false,
+    val linkUrl: String? = null
+) {
+    fun hasAnyFormatting(): Boolean {
+        return isBold ||
+            isItalic ||
+            isUnderline ||
+            isStrikethrough ||
+            highlightColorArgb != null ||
+            textColorArgb != null ||
+            fontSizeSp != null ||
+            !fontStyleId.isNullOrBlank() ||
+            headingLevel > 0 ||
+            isQuote ||
+            isCode ||
+            !linkUrl.isNullOrBlank()
+    }
+}
+
 data class Note(
     val id: String,
     val title: String,
@@ -148,6 +197,11 @@ data class Note(
     val attachments: List<NoteAttachment> = emptyList(),
     val versions: List<NoteVersion> = emptyList(),
     val activityLog: List<ActivityLogEntry> = emptyList(),
+    val richSpans: List<RichTextSpan> = emptyList(),
+    val bodyFontStyle: String = EditorFontStyle.SANS.id,
+    val bodyFontSizeSp: Float = 16f,
+    val bodyTextColorArgb: Long? = null,
+    val bodyTextAlign: String = "start",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

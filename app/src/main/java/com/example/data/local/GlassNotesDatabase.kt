@@ -12,8 +12,10 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import com.example.model.ChecklistItem
+import com.example.model.EditorFontStyle
 import com.example.model.Note
 import com.example.model.NoteColor
+import com.example.model.RichTextSpan
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -38,6 +40,7 @@ data class NoteEntity(
     val reminderVolume: Int,
     val tagsCsv: String,
     val folder: String,
+    val richMetaJson: String = "{}",
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -69,7 +72,7 @@ interface NoteDao {
     }
 }
 
-@Database(entities = [NoteEntity::class], version = 1, exportSchema = false)
+@Database(entities = [NoteEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
 
@@ -101,6 +104,32 @@ fun Note.toEntity(): NoteEntity {
             put("isDone", item.isDone)
         })
     }
+    val spansArr = JSONArray()
+    richSpans.forEach { sp ->
+        spansArr.put(JSONObject().apply {
+            put("start", sp.start)
+            put("end", sp.end)
+            if (sp.isBold) put("isBold", true)
+            if (sp.isItalic) put("isItalic", true)
+            if (sp.isUnderline) put("isUnderline", true)
+            if (sp.isStrikethrough) put("isStrikethrough", true)
+            if (sp.highlightColorArgb != null) put("highlightColorArgb", sp.highlightColorArgb)
+            if (sp.textColorArgb != null) put("textColorArgb", sp.textColorArgb)
+            if (sp.fontSizeSp != null) put("fontSizeSp", sp.fontSizeSp.toDouble())
+            if (!sp.fontStyleId.isNullOrBlank()) put("fontStyleId", sp.fontStyleId)
+            if (sp.headingLevel > 0) put("headingLevel", sp.headingLevel)
+            if (sp.isQuote) put("isQuote", true)
+            if (sp.isCode) put("isCode", true)
+            if (!sp.linkUrl.isNullOrBlank()) put("linkUrl", sp.linkUrl)
+        })
+    }
+    val richMeta = JSONObject().apply {
+        put("richSpans", spansArr)
+        put("bodyFontStyle", bodyFontStyle)
+        put("bodyFontSizeSp", bodyFontSizeSp.toDouble())
+        if (bodyTextColorArgb != null) put("bodyTextColorArgb", bodyTextColorArgb)
+        put("bodyTextAlign", bodyTextAlign)
+    }
     return NoteEntity(
         id = id,
         title = title,
@@ -121,6 +150,7 @@ fun Note.toEntity(): NoteEntity {
         reminderVolume = reminderVolume,
         tagsCsv = tags.joinToString(","),
         folder = folder,
+        richMetaJson = richMeta.toString(),
         createdAt = createdAt,
         updatedAt = updatedAt
     )
@@ -139,6 +169,45 @@ fun NoteEntity.toNote(): Note {
                     isDone = o.optBoolean("isDone", false)
                 )
             )
+        }
+    } catch (_: Exception) {
+    }
+    val parsedSpans = mutableListOf<RichTextSpan>()
+    var parsedFontStyle = EditorFontStyle.SANS.id
+    var parsedFontSizeSp = 16f
+    var parsedTextColor: Long? = null
+    var parsedTextAlign = "start"
+    try {
+        if (richMetaJson.isNotBlank()) {
+            val meta = JSONObject(richMetaJson)
+            parsedFontStyle = meta.optString("bodyFontStyle", EditorFontStyle.SANS.id)
+            parsedFontSizeSp = meta.optDouble("bodyFontSizeSp", 16.0).toFloat()
+            parsedTextColor = if (meta.has("bodyTextColorArgb")) meta.optLong("bodyTextColorArgb") else null
+            parsedTextAlign = meta.optString("bodyTextAlign", "start")
+            val spArr = meta.optJSONArray("richSpans")
+            if (spArr != null) {
+                for (i in 0 until spArr.length()) {
+                    val s = spArr.getJSONObject(i)
+                    parsedSpans.add(
+                        RichTextSpan(
+                            start = s.optInt("start", 0),
+                            end = s.optInt("end", 0),
+                            isBold = s.optBoolean("isBold", false),
+                            isItalic = s.optBoolean("isItalic", false),
+                            isUnderline = s.optBoolean("isUnderline", false),
+                            isStrikethrough = s.optBoolean("isStrikethrough", false),
+                            highlightColorArgb = if (s.has("highlightColorArgb")) s.optLong("highlightColorArgb") else null,
+                            textColorArgb = if (s.has("textColorArgb")) s.optLong("textColorArgb") else null,
+                            fontSizeSp = if (s.has("fontSizeSp")) s.optDouble("fontSizeSp").toFloat() else null,
+                            fontStyleId = s.optString("fontStyleId", "").ifBlank { null },
+                            headingLevel = s.optInt("headingLevel", 0),
+                            isQuote = s.optBoolean("isQuote", false),
+                            isCode = s.optBoolean("isCode", false),
+                            linkUrl = s.optString("linkUrl", "").ifBlank { null }
+                        )
+                    )
+                }
+            }
         }
     } catch (_: Exception) {
     }
@@ -163,6 +232,11 @@ fun NoteEntity.toNote(): Note {
         reminderVolume = reminderVolume,
         tags = parsedTags,
         folder = folder,
+        richSpans = parsedSpans,
+        bodyFontStyle = parsedFontStyle,
+        bodyFontSizeSp = parsedFontSizeSp,
+        bodyTextColorArgb = parsedTextColor,
+        bodyTextAlign = parsedTextAlign,
         createdAt = createdAt,
         updatedAt = updatedAt
     )

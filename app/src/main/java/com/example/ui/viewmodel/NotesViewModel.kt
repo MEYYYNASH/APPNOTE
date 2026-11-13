@@ -18,6 +18,7 @@ import com.example.model.NoteColor
 import com.example.model.NoteFolder
 import com.example.model.NoteType
 import com.example.model.NoteVersion
+import com.example.model.RichTextSpan
 import com.example.model.SearchFilters
 import com.example.model.TypeFilter
 import kotlinx.coroutines.Job
@@ -451,7 +452,13 @@ class NotesViewModel(
         folder: String? = null,
         color: NoteColor? = null,
         isPinned: Boolean? = null,
-        isFavorite: Boolean? = null
+        isFavorite: Boolean? = null,
+        richSpans: List<RichTextSpan>? = null,
+        bodyFontStyle: String? = null,
+        bodyFontSizeSp: Float? = null,
+        bodyTextColorArgb: Long? = null,
+        clearBodyTextColor: Boolean = false,
+        bodyTextAlign: String? = null
     ) {
         val now = System.currentTimeMillis()
         val intervalMs = _uiState.value.settings.snapshotIntervalSec * 1000L
@@ -510,6 +517,12 @@ class NotesViewModel(
                     note.activityLog
                 }
 
+                val newRichSpans = richSpans ?: note.richSpans
+                val newBodyFontStyle = bodyFontStyle ?: note.bodyFontStyle
+                val newBodyFontSizeSp = bodyFontSizeSp ?: note.bodyFontSizeSp
+                val newBodyTextColorArgb = if (clearBodyTextColor) null else (bodyTextColorArgb ?: note.bodyTextColorArgb)
+                val newBodyTextAlign = bodyTextAlign ?: note.bodyTextAlign
+
                 note.copy(
                     title = newTitle,
                     body = newBody,
@@ -522,6 +535,11 @@ class NotesViewModel(
                     isFavorite = newFavorite,
                     versions = newVersions,
                     activityLog = newLogs,
+                    richSpans = newRichSpans,
+                    bodyFontStyle = newBodyFontStyle,
+                    bodyFontSizeSp = newBodyFontSizeSp,
+                    bodyTextColorArgb = newBodyTextColorArgb,
+                    bodyTextAlign = newBodyTextAlign,
                     updatedAt = now
                 ).also { modifiedNote = it }
             }

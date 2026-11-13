@@ -74,6 +74,7 @@ import com.example.ui.components.NoteContextBottomSheet
 import com.example.ui.components.QuickCaptureDialog
 import com.example.ui.components.QuickReminderDialog
 import com.example.ui.components.WidgetStudioDialog
+import com.example.ui.components.convertLegacyMarkdownToRichText
 import com.example.ui.components.formatNoteTime
 import com.example.ui.icons.LineIcon
 import com.example.ui.icons.LineIconType
@@ -195,7 +196,7 @@ fun NoteListPane(
                 .blur(if (isOverlayOpen) 26.dp else 0.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Clean Minimal Header: Logo + "Notes" + Quote on left; ONLY Quick Capture (⚡) + Theme (☀️/🌙) on right
+                // Clean Minimal Header: Logo + "Notes" + Quote on left; ONLY Quick Capture + Theme on right
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -759,14 +760,15 @@ private fun CleanGlassNoteRowCard(
     val now = System.currentTimeMillis()
     val hasActiveReminder = note.reminderAt != null && !note.reminderFired && note.reminderAt > now
 
-    val previewLine = remember(note.body, note.isChecklist, note.checklist, hidePreview) {
+    val previewLine = remember(note.body, note.richSpans, note.isChecklist, note.checklist, hidePreview) {
         if (hidePreview) {
             "••••••••••••"
         } else if (note.isChecklist && note.checklist.isNotEmpty()) {
             val done = note.checklist.count { it.isDone }
             "$done of ${note.checklist.size} done"
         } else {
-            note.body.replace("\n", " ").replace(Regex("\\s+"), " ").trim()
+            val cleanBody = convertLegacyMarkdownToRichText(note.body, note.richSpans).first
+            cleanBody.replace("\n", " ").replace(Regex("\\s+"), " ").trim()
                 .ifBlank { "No additional text" }
         }
     }

@@ -62,6 +62,7 @@ import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FormatAlignCenter
+import androidx.compose.material.icons.rounded.FormatClear
 import androidx.compose.material.icons.rounded.FormatListNumbered
 import androidx.compose.material.icons.rounded.FormatQuote
 import androidx.compose.material.icons.rounded.FormatSize
@@ -74,14 +75,15 @@ import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.TableChart
+import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.VideoFile
 import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -105,11 +107,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,25 +125,43 @@ import androidx.core.content.ContextCompat
 import com.example.model.AppStrings
 import com.example.model.AttachmentType
 import com.example.model.ChecklistItem
+import com.example.model.EditorFontStyle
 import com.example.model.Note
 import com.example.model.NoteAttachment
 import com.example.model.NoteColor
 import com.example.model.NoteVersion
+import com.example.model.RichTextSpan
+import com.example.ui.components.CustomColorPickerDialog
 import com.example.ui.components.DocumentScannerDialog
 import com.example.ui.components.DrawingCanvasDialog
+import com.example.ui.components.FontStylePickerDialog
 import com.example.ui.components.GlassActionPill
 import com.example.ui.components.GlassIconButton
 import com.example.ui.components.GlassOuterPane
 import com.example.ui.components.GlassPanel
 import com.example.ui.components.HistoryDialog
+import com.example.ui.components.InsertLinkDialog
+import com.example.ui.components.InsertTableDialog
 import com.example.ui.components.PhotoCropDialog
 import com.example.ui.components.ReminderPickerDialog
+import com.example.ui.components.RichTextVisualTransformation
+import com.example.ui.components.TypingFormatState
 import com.example.ui.components.VoiceAttachmentPlayer
 import com.example.ui.components.VoiceRecorderDialog
+import com.example.ui.components.adjustSpansForTextEdit
+import com.example.ui.components.applySpanFormat
+import com.example.ui.components.buildRichAnnotatedString
+import com.example.ui.components.convertLegacyMarkdownToRichText
+import com.example.ui.components.currentParagraphRange
 import com.example.ui.components.formatNoteTime
+import com.example.ui.components.normalizeAndCompactSpans
+import com.example.ui.components.resolveFormatStateAt
+import com.example.ui.components.toggleLinePrefixInSelection
 import com.example.ui.icons.LineIcon
 import com.example.ui.icons.LineIconType
+import com.example.ui.theme.FigtreeFontFamily
 import com.example.ui.theme.LocalGlassTokens
+import com.example.ui.theme.resolveEditorFontFamily
 import com.example.util.ReminderScheduler
 import java.util.UUID
 
@@ -156,48 +178,73 @@ private data class NoteTemplateOption(
     val subtitle: String,
     val defaultTitle: String,
     val defaultBody: String,
+    val defaultSpans: List<RichTextSpan> = emptyList(),
     val folder: String,
     val icon: ImageVector
 )
 
-private val NOTE_TEMPLATES = listOf(
-    NoteTemplateOption(
-        id = "meeting",
-        title = "Meeting Notes",
-        subtitle = "Agenda, attendees, decisions & action items",
-        defaultTitle = "Meeting Notes",
-        defaultBody = "# Meeting Notes\n\n**Date:** Today\n**Attendees:** Team\n\n## Agenda\n1. Project milestone review\n2. Upcoming deliverables\n\n## Action Items\n- [ ] Follow up on design specs\n- [ ] Schedule QA review",
-        folder = "Work",
-        icon = Icons.Rounded.Event
-    ),
-    NoteTemplateOption(
-        id = "project",
-        title = "Project Specification",
-        subtitle = "Goals, architecture, milestones & table",
-        defaultTitle = "Project Ideas",
-        defaultBody = "# Project Specification\n\n> Build a modern note app with rich formatting and offline sync.\n\n## Core Features\n- Rich Markdown & Tables\n- Multi-page Document Scanner\n- Custom Reminder Sounds\n\n| Milestone | Owner | Status |\n| --- | --- | --- |\n| UI Design | Design | Done |\n| Release v1.1.20 | Eng | Active |",
-        folder = "Projects",
-        icon = Icons.Rounded.RocketLaunch
-    ),
-    NoteTemplateOption(
-        id = "journal",
-        title = "Daily Journal",
-        subtitle = "Gratitude, highlights & daily reflection",
-        defaultTitle = "Daily Journal",
-        defaultBody = "# Daily Reflection\n\n## 3 Things I'm Grateful For\n1. Productive morning session\n2. Helpful team feedback\n3. Clear priorities\n\n## Today's Highlight\n==Focused 100% on shipping quality features.==",
-        folder = "Journal",
-        icon = Icons.Rounded.Favorite
-    ),
-    NoteTemplateOption(
-        id = "code",
-        title = "Technical Snippet",
-        subtitle = "Code block, architecture notes & links",
-        defaultTitle = "Code & Architecture Note",
-        defaultBody = "# Technical Note\n\n```kotlin\nfun verifyRelease(version: String): Boolean {\n    return version == \"1.1.20\"\n}\n```\n\nReference: [GitHub Repository](https://github.com/MEYYYNASH/APPNOTE)",
-        folder = "Projects",
-        icon = Icons.Rounded.Code
+private val NOTE_TEMPLATES: List<NoteTemplateOption> by lazy {
+    listOf(
+        NoteTemplateOption(
+            id = "meeting",
+            title = "Meeting Notes",
+            subtitle = "Agenda, attendees, decisions & action items",
+            defaultTitle = "Meeting Notes",
+            defaultBody = "Meeting Notes\n\nDate: Today\nAttendees: Team\n\nAgenda\n1. Project milestone review\n2. Upcoming deliverables\n\nAction Items\n• Follow up on design specs\n• Schedule QA review",
+            defaultSpans = listOf(
+                RichTextSpan(0, 13, headingLevel = 1),
+                RichTextSpan(39, 45, headingLevel = 2),
+                RichTextSpan(97, 109, headingLevel = 2)
+            ),
+            folder = "Work",
+            icon = Icons.Rounded.Event
+        ),
+        NoteTemplateOption(
+            id = "project",
+            title = "Project Specification",
+            subtitle = "Goals, architecture, milestones & deliverables",
+            defaultTitle = "Project Ideas",
+            defaultBody = "Project Specification\n\nBuild a modern note app with rich formatting and offline sync.\n\nCore Features\n• Clean Live Rich Formatting\n• Multi-page Document Scanner\n• Custom Reminder Sounds\n\nMilestone  |  Owner  |  Status\nUI Design  |  Design  |  Done\nRelease v1.1.20  |  Eng  |  Active",
+            defaultSpans = listOf(
+                RichTextSpan(0, 21, headingLevel = 1),
+                RichTextSpan(23, 86, isQuote = true),
+                RichTextSpan(88, 101, headingLevel = 2),
+                RichTextSpan(188, 220, isBold = true)
+            ),
+            folder = "Projects",
+            icon = Icons.Rounded.RocketLaunch
+        ),
+        NoteTemplateOption(
+            id = "journal",
+            title = "Daily Journal",
+            subtitle = "Gratitude, highlights & daily reflection",
+            defaultTitle = "Daily Journal",
+            defaultBody = "Daily Reflection\n\n3 Things I'm Grateful For\n1. Productive morning session\n2. Helpful team feedback\n3. Clear priorities\n\nToday's Highlight\nFocused 100% on shipping quality features.",
+            defaultSpans = listOf(
+                RichTextSpan(0, 16, headingLevel = 1),
+                RichTextSpan(18, 43, headingLevel = 2),
+                RichTextSpan(119, 136, headingLevel = 2),
+                RichTextSpan(137, 181, highlightColorArgb = 0xFFFACC15L)
+            ),
+            folder = "Journal",
+            icon = Icons.Rounded.Favorite
+        ),
+        NoteTemplateOption(
+            id = "code",
+            title = "Technical Snippet",
+            subtitle = "Code block, architecture notes & links",
+            defaultTitle = "Code & Architecture Note",
+            defaultBody = "Technical Note\n\nfun verifyRelease(version: String): Boolean {\n    return version == \"1.1.20\"\n}\n\nReference: GitHub Repository",
+            defaultSpans = listOf(
+                RichTextSpan(0, 14, headingLevel = 1),
+                RichTextSpan(16, 94, isCode = true),
+                RichTextSpan(107, 124, linkUrl = "https://github.com/MEYYYNASH/APPNOTE")
+            ),
+            folder = "Projects",
+            icon = Icons.Rounded.Code
+        )
     )
-)
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -229,6 +276,14 @@ fun NoteEditorPane(
     onSetReminder: (Long?) -> Unit = {},
     onSetReminderWithSound: ((Long?, String?, String?, String?) -> Unit)? = null,
     onToggleFavorite: () -> Unit = {},
+    onUpdateRichFormatting: (
+        spans: List<RichTextSpan>?,
+        fontStyle: String?,
+        fontSizeSp: Float?,
+        textColorArgb: Long?,
+        clearTextColor: Boolean,
+        textAlign: String?
+    ) -> Unit = { _, _, _, _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -275,50 +330,181 @@ fun NoteEditorPane(
         var showReminderDialog by remember { mutableStateOf(false) }
         var showScannerDialog by remember { mutableStateOf(false) }
         var showTemplatesDialog by remember { mutableStateOf(false) }
+        var showCustomColorDialog by remember { mutableStateOf(false) }
+        var showFontStyleDialog by remember { mutableStateOf(false) }
+        var showInsertLinkDialog by remember { mutableStateOf(false) }
+        var showInsertTableDialog by remember { mutableStateOf(false) }
         var pendingCrop by remember { mutableStateOf<PendingCropTarget?>(null) }
         var tagsInput by remember(note.id) { mutableStateOf(note.tags.joinToString(", ")) }
 
-        // Suite 3: Advanced Editor States (Full-Screen, Reading Mode, Font Size, Font Color, Alignment, Undo/Redo)
         var isFullScreenEditor by remember { mutableStateOf(false) }
         var isReadingMode by remember { mutableStateOf(false) }
         var showRichFormatBar by remember { mutableStateOf(true) }
-        var editorFontSizeSp by remember { mutableFloatStateOf(16f) }
-        var editorFontColorIndex by remember { mutableStateOf(0) }
-        var editorTextAlign by remember { mutableStateOf(TextAlign.Start) }
 
-        val undoStack = remember(note.id) { mutableStateListOf<String>() }
-        val redoStack = remember(note.id) { mutableStateListOf<String>() }
+        var bodyFieldValue by remember(note.id) {
+            mutableStateOf(TextFieldValue(text = note.body, selection = TextRange(note.body.length)))
+        }
+        var typingStyle by remember(note.id) { mutableStateOf(TypingFormatState()) }
 
-        fun updateBodyWithHistory(newBody: String) {
-            if (newBody != note.body) {
-                if (undoStack.isEmpty() || undoStack.last() != note.body) {
-                    undoStack.add(note.body)
-                    if (undoStack.size > 40) undoStack.removeAt(0)
+        // Automatically convert any legacy raw markdown tags into clean WYSIWYG spans on open
+        LaunchedEffect(note.id, note.body) {
+            if (note.richSpans.isEmpty() && note.body.isNotEmpty()) {
+                val (convertedText, convertedSpans) = convertLegacyMarkdownToRichText(note.body, note.richSpans)
+                if (convertedText != note.body || convertedSpans.isNotEmpty()) {
+                    bodyFieldValue = TextFieldValue(
+                        text = convertedText,
+                        selection = TextRange(convertedText.length)
+                    )
+                    onUpdateNote(null, convertedText, null, null, null, null, null, null)
+                    onUpdateRichFormatting(convertedSpans, null, null, null, false, null)
+                    return@LaunchedEffect
                 }
-                redoStack.clear()
-                onUpdateNote(null, newBody, null, null, null, null, null, null)
+            }
+            if (note.body != bodyFieldValue.text) {
+                val len = note.body.length
+                bodyFieldValue = bodyFieldValue.copy(
+                    text = note.body,
+                    selection = TextRange(
+                        bodyFieldValue.selection.start.coerceIn(0, len),
+                        bodyFieldValue.selection.end.coerceIn(0, len)
+                    )
+                )
             }
         }
 
-        fun insertOrWrapMarkup(prefix: String, suffix: String = "", sampleText: String = "text") {
-            val current = note.body
-            val addition = if (current.isEmpty() || current.endsWith("\n")) {
-                "$prefix$sampleText$suffix"
+        val undoStack = remember(note.id) { mutableStateListOf<Pair<String, List<RichTextSpan>>>() }
+        val redoStack = remember(note.id) { mutableStateListOf<Pair<String, List<RichTextSpan>>>() }
+
+        fun pushUndoSnapshot() {
+            val snap = note.body to note.richSpans
+            if (undoStack.isEmpty() || undoStack.last() != snap) {
+                undoStack.add(snap)
+                if (undoStack.size > 40) undoStack.removeAt(0)
+            }
+            redoStack.clear()
+        }
+
+        fun commitBodyAndSpans(
+            newText: String,
+            newSpans: List<RichTextSpan>,
+            newSelection: TextRange? = null
+        ) {
+            val cleaned = normalizeAndCompactSpans(newSpans, newText.length)
+            if (newText != note.body || cleaned != note.richSpans) {
+                pushUndoSnapshot()
+                bodyFieldValue = bodyFieldValue.copy(
+                    text = newText,
+                    selection = newSelection ?: TextRange(
+                        bodyFieldValue.selection.start.coerceIn(0, newText.length),
+                        bodyFieldValue.selection.end.coerceIn(0, newText.length)
+                    )
+                )
+                onUpdateNote(null, newText, null, null, null, null, null, null)
+                onUpdateRichFormatting(cleaned, null, null, null, false, null)
+            }
+        }
+
+        fun applySpansOnly(newSpans: List<RichTextSpan>) {
+            val cleaned = normalizeAndCompactSpans(newSpans, bodyFieldValue.text.length)
+            if (cleaned != note.richSpans) {
+                pushUndoSnapshot()
+                onUpdateRichFormatting(cleaned, null, null, null, false, null)
+            }
+        }
+
+        fun toggleInlineFormatting(
+            isActive: (TypingFormatState) -> Boolean,
+            updateTyping: (TypingFormatState, Boolean) -> TypingFormatState,
+            updateSpan: (RichTextSpan, Boolean) -> RichTextSpan
+        ) {
+            val sel = bodyFieldValue.selection
+            if (!sel.collapsed) {
+                val current = resolveFormatStateAt(note.richSpans, sel)
+                val targetState = !isActive(current)
+                val updated = applySpanFormat(
+                    textLength = bodyFieldValue.text.length,
+                    rangeStart = sel.start,
+                    rangeEnd = sel.end,
+                    spans = note.richSpans
+                ) { span -> updateSpan(span, targetState) }
+                applySpansOnly(updated)
             } else {
-                "\n$prefix$sampleText$suffix"
+                val nextActive = !isActive(typingStyle)
+                typingStyle = updateTyping(typingStyle, nextActive)
             }
-            updateBodyWithHistory(current + addition)
         }
 
-        val editorColorPalette = listOf(
-            tokens.textPrimary,
-            Color(0xFF38BDF8),
-            Color(0xFFA855F7),
-            Color(0xFFF43F5E),
-            Color(0xFF10B981),
-            Color(0xFFF59E0B)
+        fun toggleParagraphBlock(targetHeading: Int = 0, toggleQuote: Boolean = false) {
+            val text = bodyFieldValue.text
+            val sel = bodyFieldValue.selection
+            if (text.isEmpty()) {
+                if (toggleQuote) {
+                    typingStyle = typingStyle.copy(isQuote = !typingStyle.isQuote)
+                } else {
+                    typingStyle = typingStyle.copy(
+                        headingLevel = if (typingStyle.headingLevel == targetHeading) 0 else targetHeading
+                    )
+                }
+                return
+            }
+            val pRange = currentParagraphRange(text, sel)
+            if (pRange.first > pRange.last) {
+                if (toggleQuote) {
+                    typingStyle = typingStyle.copy(isQuote = !typingStyle.isQuote)
+                } else {
+                    typingStyle = typingStyle.copy(
+                        headingLevel = if (typingStyle.headingLevel == targetHeading) 0 else targetHeading
+                    )
+                }
+            } else {
+                val blockStart = pRange.first
+                val blockEnd = pRange.last + 1
+                val curState = resolveFormatStateAt(note.richSpans, TextRange(blockStart, blockEnd))
+                val updated = applySpanFormat(
+                    textLength = text.length,
+                    rangeStart = blockStart,
+                    rangeEnd = blockEnd,
+                    spans = note.richSpans
+                ) { span ->
+                    if (toggleQuote) {
+                        span.copy(isQuote = !curState.isQuote)
+                    } else {
+                        val nextHeading = if (curState.headingLevel == targetHeading) 0 else targetHeading
+                        span.copy(headingLevel = nextHeading)
+                    }
+                }
+                applySpansOnly(updated)
+                typingStyle = if (toggleQuote) {
+                    typingStyle.copy(isQuote = !curState.isQuote)
+                } else {
+                    typingStyle.copy(
+                        headingLevel = if (curState.headingLevel == targetHeading) 0 else targetHeading
+                    )
+                }
+            }
+        }
+
+        val activeBodyFontFamily = resolveEditorFontFamily(
+            note.bodyFontStyle,
+            MaterialTheme.typography.bodyLarge.fontFamily ?: FigtreeFontFamily
         )
-        val activeEditorTextColor = editorColorPalette[editorFontColorIndex % editorColorPalette.size]
+        val activeEditorTextColor = note.bodyTextColorArgb?.let { Color(it) } ?: tokens.textPrimary
+        val editorFontSizeSp = note.bodyFontSizeSp.coerceIn(12f, 28f)
+        val editorTextAlign = when (note.bodyTextAlign) {
+            "center" -> TextAlign.Center
+            "end" -> TextAlign.End
+            else -> TextAlign.Start
+        }
+        val liveFormatState = remember(note.richSpans, bodyFieldValue.selection, typingStyle) {
+            if (!bodyFieldValue.selection.collapsed) {
+                resolveFormatStateAt(note.richSpans, bodyFieldValue.selection)
+            } else {
+                typingStyle
+            }
+        }
+        val activeCustomSwatchColor = remember(liveFormatState.textColorArgb, note.bodyTextColorArgb, tokens.accentStart) {
+            (liveFormatState.textColorArgb ?: note.bodyTextColorArgb)?.let { Color(it) } ?: tokens.accentStart
+        }
 
         val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
@@ -408,7 +594,11 @@ fun NoteEditorPane(
             showDrawDialog ||
             showHistoryDialog ||
             showScannerDialog ||
-            showTemplatesDialog
+            showTemplatesDialog ||
+            showCustomColorDialog ||
+            showFontStyleDialog ||
+            showInsertLinkDialog ||
+            showInsertTableDialog
 
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -481,9 +671,11 @@ fun NoteEditorPane(
                         testTag = "editor_undo_button",
                         onClick = {
                             if (undoStack.isNotEmpty()) {
-                                val prev = undoStack.removeAt(undoStack.lastIndex)
-                                redoStack.add(note.body)
-                                onUpdateNote(null, prev, null, null, null, null, null, null)
+                                val (prevText, prevSpans) = undoStack.removeAt(undoStack.lastIndex)
+                                redoStack.add(note.body to note.richSpans)
+                                bodyFieldValue = TextFieldValue(prevText, TextRange(prevText.length))
+                                onUpdateNote(null, prevText, null, null, null, null, null, null)
+                                onUpdateRichFormatting(prevSpans, null, null, null, false, null)
                             }
                         }
                     )
@@ -497,9 +689,11 @@ fun NoteEditorPane(
                         testTag = "editor_redo_button",
                         onClick = {
                             if (redoStack.isNotEmpty()) {
-                                val nextVal = redoStack.removeAt(redoStack.lastIndex)
-                                undoStack.add(note.body)
-                                onUpdateNote(null, nextVal, null, null, null, null, null, null)
+                                val (nextText, nextSpans) = redoStack.removeAt(redoStack.lastIndex)
+                                undoStack.add(note.body to note.richSpans)
+                                bodyFieldValue = TextFieldValue(nextText, TextRange(nextText.length))
+                                onUpdateNote(null, nextText, null, null, null, null, null, null)
+                                onUpdateRichFormatting(nextSpans, null, null, null, false, null)
                             }
                         }
                     )
@@ -594,7 +788,7 @@ fun NoteEditorPane(
                     )
                 }
 
-                // Suite 3: Rich Text Formatting Bar (Bold, Italic, Underline, Strikethrough, H1/H2/H3, Font Size, Font Color, Highlight, Alignment, Lists, Table, Code, Quote, Link)
+                // Live WYSIWYG Rich Formatting Bar (Applies directly to selected text or upcoming typing, zero markup syntax inserted)
                 AnimatedVisibility(visible = !isFullScreenEditor && !isReadingMode && !note.isChecklist && showRichFormatBar) {
                     Row(
                         modifier = Modifier
@@ -605,40 +799,164 @@ fun NoteEditorPane(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        FormatChip("B", "format_bold") { insertOrWrapMarkup("**", "**", "bold") }
-                        FormatChip("I", "format_italic") { insertOrWrapMarkup("*", "*", "italic") }
-                        FormatChip("U", "format_underline") { insertOrWrapMarkup("<u>", "</u>", "underlined") }
-                        FormatChip("S", "format_strikethrough") { insertOrWrapMarkup("~~", "~~", "strikethrough") }
-                        FormatChip("H1", "format_h1") { insertOrWrapMarkup("# ", "", "Heading 1") }
-                        FormatChip("H2", "format_h2") { insertOrWrapMarkup("## ", "", "Heading 2") }
-                        FormatChip("H3", "format_h3") { insertOrWrapMarkup("### ", "", "Heading 3") }
-                        FormatChip("Highlight", "format_highlight", Icons.Rounded.BorderColor) { insertOrWrapMarkup("==", "==", "highlighted text") }
-                        FormatChip("List", "format_bullet_list", Icons.AutoMirrored.Rounded.FormatListBulleted) { insertOrWrapMarkup("- ", "", "List item") }
-                        FormatChip("1. List", "format_numbered_list", Icons.Rounded.FormatListNumbered) { insertOrWrapMarkup("1. ", "", "Numbered item") }
-                        FormatChip("Quote", "format_blockquote", Icons.Rounded.FormatQuote) { insertOrWrapMarkup("> ", "", "Important quote") }
-                        FormatChip("Code", "format_code_block", Icons.Rounded.Code) {
-                            insertOrWrapMarkup("```\n", "\n```", "// code snippet")
-                        }
-                        FormatChip("Table", "format_table", Icons.Rounded.TableChart) {
-                            insertOrWrapMarkup(
-                                "| Column 1 | Column 2 |\n| --- | --- |\n| ",
-                                " | Value 2 |",
-                                "Value 1"
+                        FormatChip(
+                            label = "B",
+                            testTag = "format_bold",
+                            active = liveFormatState.isBold
+                        ) {
+                            toggleInlineFormatting(
+                                isActive = { it.isBold },
+                                updateTyping = { st, v -> st.copy(isBold = v) },
+                                updateSpan = { sp, v -> sp.copy(isBold = v) }
                             )
                         }
-                        FormatChip("Link", "format_link", Icons.Rounded.Link) {
-                            insertOrWrapMarkup("[", "](https://github.com/MEYYYNASH/APPNOTE)", "Link title")
+                        FormatChip(
+                            label = "I",
+                            testTag = "format_italic",
+                            active = liveFormatState.isItalic
+                        ) {
+                            toggleInlineFormatting(
+                                isActive = { it.isItalic },
+                                updateTyping = { st, v -> st.copy(isItalic = v) },
+                                updateSpan = { sp, v -> sp.copy(isItalic = v) }
+                            )
                         }
-                        FormatChip("${editorFontSizeSp.toInt()}sp", "format_font_size", Icons.Rounded.FormatSize) {
-                            editorFontSizeSp = when (editorFontSizeSp.toInt()) {
+                        FormatChip(
+                            label = "U",
+                            testTag = "format_underline",
+                            active = liveFormatState.isUnderline
+                        ) {
+                            toggleInlineFormatting(
+                                isActive = { it.isUnderline },
+                                updateTyping = { st, v -> st.copy(isUnderline = v) },
+                                updateSpan = { sp, v -> sp.copy(isUnderline = v) }
+                            )
+                        }
+                        FormatChip(
+                            label = "S",
+                            testTag = "format_strikethrough",
+                            active = liveFormatState.isStrikethrough
+                        ) {
+                            toggleInlineFormatting(
+                                isActive = { it.isStrikethrough },
+                                updateTyping = { st, v -> st.copy(isStrikethrough = v) },
+                                updateSpan = { sp, v -> sp.copy(isStrikethrough = v) }
+                            )
+                        }
+                        FormatChip(
+                            label = "H1",
+                            testTag = "format_h1",
+                            active = liveFormatState.headingLevel == 1
+                        ) { toggleParagraphBlock(targetHeading = 1) }
+                        FormatChip(
+                            label = "H2",
+                            testTag = "format_h2",
+                            active = liveFormatState.headingLevel == 2
+                        ) { toggleParagraphBlock(targetHeading = 2) }
+                        FormatChip(
+                            label = "H3",
+                            testTag = "format_h3",
+                            active = liveFormatState.headingLevel == 3
+                        ) { toggleParagraphBlock(targetHeading = 3) }
+                        FormatChip(
+                            label = "Highlight",
+                            testTag = "format_highlight",
+                            icon = Icons.Rounded.BorderColor,
+                            active = liveFormatState.highlightColorArgb != null
+                        ) {
+                            toggleInlineFormatting(
+                                isActive = { it.highlightColorArgb != null },
+                                updateTyping = { st, v -> st.copy(highlightColorArgb = if (v) 0xFFFACC15L else null) },
+                                updateSpan = { sp, v -> sp.copy(highlightColorArgb = if (v) 0xFFFACC15L else null) }
+                            )
+                        }
+                        FormatChip(
+                            label = "Font: ${EditorFontStyle.fromId(liveFormatState.fontStyleId ?: note.bodyFontStyle).labelEn.substringAfterLast(" ")}",
+                            testTag = "format_font_style",
+                            icon = Icons.Rounded.TextFields,
+                            active = (liveFormatState.fontStyleId ?: note.bodyFontStyle).let { it.isNotBlank() && it != EditorFontStyle.SANS.id }
+                        ) {
+                            showFontStyleDialog = true
+                        }
+                        FormatChip(
+                            label = "Color",
+                            testTag = "format_font_color",
+                            icon = Icons.Rounded.Palette,
+                            swatchColor = activeCustomSwatchColor,
+                            active = liveFormatState.textColorArgb != null || note.bodyTextColorArgb != null
+                        ) {
+                            showCustomColorDialog = true
+                        }
+                        FormatChip(
+                            label = "List",
+                            testTag = "format_bullet_list",
+                            icon = Icons.AutoMirrored.Rounded.FormatListBulleted
+                        ) {
+                            val (nextText, nextSel, nextSpans) = toggleLinePrefixInSelection(
+                                text = bodyFieldValue.text,
+                                selection = bodyFieldValue.selection,
+                                spans = note.richSpans,
+                                numbered = false
+                            )
+                            commitBodyAndSpans(nextText, nextSpans, nextSel)
+                        }
+                        FormatChip(
+                            label = "1. List",
+                            testTag = "format_numbered_list",
+                            icon = Icons.Rounded.FormatListNumbered
+                        ) {
+                            val (nextText, nextSel, nextSpans) = toggleLinePrefixInSelection(
+                                text = bodyFieldValue.text,
+                                selection = bodyFieldValue.selection,
+                                spans = note.richSpans,
+                                numbered = true
+                            )
+                            commitBodyAndSpans(nextText, nextSpans, nextSel)
+                        }
+                        FormatChip(
+                            label = "Quote",
+                            testTag = "format_blockquote",
+                            icon = Icons.Rounded.FormatQuote,
+                            active = liveFormatState.isQuote
+                        ) { toggleParagraphBlock(toggleQuote = true) }
+                        FormatChip(
+                            label = "Code",
+                            testTag = "format_code_block",
+                            icon = Icons.Rounded.Code,
+                            active = liveFormatState.isCode
+                        ) {
+                            toggleInlineFormatting(
+                                isActive = { it.isCode },
+                                updateTyping = { st, v -> st.copy(isCode = v) },
+                                updateSpan = { sp, v -> sp.copy(isCode = v) }
+                            )
+                        }
+                        FormatChip(
+                            label = "Table",
+                            testTag = "format_table",
+                            icon = Icons.Rounded.TableChart
+                        ) {
+                            showInsertTableDialog = true
+                        }
+                        FormatChip(
+                            label = "Link",
+                            testTag = "format_link",
+                            icon = Icons.Rounded.Link
+                        ) {
+                            showInsertLinkDialog = true
+                        }
+                        FormatChip(
+                            label = "${editorFontSizeSp.toInt()}sp",
+                            testTag = "format_font_size",
+                            icon = Icons.Rounded.FormatSize
+                        ) {
+                            val nextSize = when (editorFontSizeSp.toInt()) {
                                 14 -> 16f
                                 16 -> 19f
                                 19 -> 22f
                                 else -> 14f
                             }
-                        }
-                        FormatChip("Color", "format_font_color", Icons.Rounded.Palette) {
-                            editorFontColorIndex = (editorFontColorIndex + 1) % editorColorPalette.size
+                            onUpdateRichFormatting(null, null, nextSize, null, false, null)
                         }
                         FormatChip(
                             label = when (editorTextAlign) {
@@ -653,10 +971,30 @@ fun NoteEditorPane(
                                 else -> Icons.AutoMirrored.Rounded.FormatAlignLeft
                             }
                         ) {
-                            editorTextAlign = when (editorTextAlign) {
-                                TextAlign.Start -> TextAlign.Center
-                                TextAlign.Center -> TextAlign.End
-                                else -> TextAlign.Start
+                            val nextAlign = when (note.bodyTextAlign) {
+                                "start" -> "center"
+                                "center" -> "end"
+                                else -> "start"
+                            }
+                            onUpdateRichFormatting(null, null, null, null, false, nextAlign)
+                        }
+                        FormatChip(
+                            label = "Clear",
+                            testTag = "format_clear",
+                            icon = Icons.Rounded.FormatClear
+                        ) {
+                            val sel = bodyFieldValue.selection
+                            if (!sel.collapsed) {
+                                val cleared = applySpanFormat(
+                                    textLength = bodyFieldValue.text.length,
+                                    rangeStart = sel.start,
+                                    rangeEnd = sel.end,
+                                    spans = note.richSpans
+                                ) { RichTextSpan(it.start, it.end) }
+                                applySpansOnly(cleared)
+                            } else {
+                                typingStyle = TypingFormatState()
+                                onUpdateRichFormatting(null, EditorFontStyle.SANS.id, 16f, null, true, "start")
                             }
                         }
                     }
@@ -950,7 +1288,34 @@ fun NoteEditorPane(
                                     .padding(horizontal = 22.dp, vertical = 8.dp)
                                     .testTag("markdown_preview_box")
                             ) {
-                                MarkdownPreviewRenderer(markdown = note.body)
+                                val rendered = remember(
+                                    note.body,
+                                    note.richSpans,
+                                    activeBodyFontFamily,
+                                    editorFontSizeSp,
+                                    activeEditorTextColor,
+                                    tokens.accentStart
+                                ) {
+                                    buildRichAnnotatedString(
+                                        text = note.body,
+                                        spans = note.richSpans,
+                                        baseFontFamily = activeBodyFontFamily,
+                                        baseFontSizeSp = editorFontSizeSp,
+                                        baseColor = activeEditorTextColor,
+                                        accentColor = tokens.accentStart
+                                    )
+                                }
+                                Text(
+                                    text = rendered,
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontFamily = activeBodyFontFamily,
+                                        fontSize = editorFontSizeSp.sp,
+                                        lineHeight = (editorFontSizeSp * 1.65f).sp,
+                                        color = activeEditorTextColor,
+                                        textAlign = editorTextAlign
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
                     } else {
@@ -961,10 +1326,11 @@ fun NoteEditorPane(
                                     .defaultMinSize(minHeight = 280.dp)
                                     .padding(horizontal = 22.dp, vertical = 8.dp)
                             ) {
-                                if (note.body.isEmpty()) {
+                                if (bodyFieldValue.text.isEmpty()) {
                                     Text(
                                         text = strings.bodyPlaceholder,
                                         style = MaterialTheme.typography.bodyLarge.copy(
+                                            fontFamily = activeBodyFontFamily,
                                             fontSize = editorFontSizeSp.sp,
                                             lineHeight = (editorFontSizeSp * 1.65f).sp,
                                             textAlign = editorTextAlign
@@ -974,15 +1340,42 @@ fun NoteEditorPane(
                                     )
                                 }
                                 BasicTextField(
-                                    value = note.body,
-                                    onValueChange = { newBody ->
-                                        updateBodyWithHistory(newBody)
+                                    value = bodyFieldValue,
+                                    onValueChange = { nextVal ->
+                                        if (nextVal.text != bodyFieldValue.text) {
+                                            val oldText = bodyFieldValue.text
+                                            val insertedNewline = nextVal.text.length > oldText.length &&
+                                                nextVal.text.getOrNull((nextVal.selection.start - 1).coerceAtLeast(0)) == '\n'
+                                            val updatedSpans = adjustSpansForTextEdit(
+                                                oldText = oldText,
+                                                newText = nextVal.text,
+                                                spans = note.richSpans,
+                                                typingStyle = typingStyle
+                                            )
+                                            pushUndoSnapshot()
+                                            bodyFieldValue = nextVal
+                                            if (insertedNewline && (typingStyle.headingLevel > 0 || typingStyle.isQuote)) {
+                                                typingStyle = typingStyle.copy(headingLevel = 0, isQuote = false)
+                                            }
+                                            onUpdateNote(null, nextVal.text, null, null, null, null, null, null)
+                                            onUpdateRichFormatting(updatedSpans, null, null, null, false, null)
+                                        } else {
+                                            bodyFieldValue = nextVal
+                                        }
                                     },
                                     textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                        fontFamily = activeBodyFontFamily,
                                         fontSize = editorFontSizeSp.sp,
                                         lineHeight = (editorFontSizeSp * 1.65f).sp,
                                         color = activeEditorTextColor,
                                         textAlign = editorTextAlign
+                                    ),
+                                    visualTransformation = RichTextVisualTransformation(
+                                        spans = note.richSpans,
+                                        baseFontFamily = activeBodyFontFamily,
+                                        baseFontSizeSp = editorFontSizeSp,
+                                        baseColor = activeEditorTextColor,
+                                        accentColor = tokens.accentStart
                                     ),
                                     cursorBrush = SolidColor(tokens.accentStart),
                                     modifier = Modifier
@@ -1214,10 +1607,19 @@ fun NoteEditorPane(
                     if (pdfB64.isNotBlank()) {
                         onAddAttachment(AttachmentType.PDF, pdfName, pdfB64, 0)
                     }
-                    val mergedBody = if (ocrText.isNotBlank()) {
-                        if (note.body.isBlank()) ocrText else "${note.body}\n\n### Extracted OCR ($docName)\n$ocrText"
+                    val mergedBody: String
+                    val extraSpans = mutableListOf<RichTextSpan>()
+                    if (ocrText.isNotBlank()) {
+                        if (note.body.isBlank()) {
+                            mergedBody = ocrText
+                        } else {
+                            val header = "Extracted OCR ($docName)"
+                            val headerStart = note.body.length + 2
+                            mergedBody = "${note.body}\n\n$header\n$ocrText"
+                            extraSpans.add(RichTextSpan(headerStart, headerStart + header.length, headingLevel = 3))
+                        }
                     } else {
-                        note.body
+                        mergedBody = note.body
                     }
                     onUpdateNote(
                         note.title.ifBlank { docName },
@@ -1229,6 +1631,12 @@ fun NoteEditorPane(
                         null,
                         null
                     )
+                    if (extraSpans.isNotEmpty()) {
+                        onUpdateRichFormatting(
+                            normalizeAndCompactSpans(note.richSpans + extraSpans, mergedBody.length),
+                            null, null, null, false, null
+                        )
+                    }
                     showScannerDialog = false
                     onShowToast("Added scanned document & OCR text")
                 }
@@ -1275,8 +1683,21 @@ fun NoteEditorPane(
                                     .background(tokens.fieldFill)
                                     .border(1.dp, tokens.panelBorder, RoundedCornerShape(14.dp))
                                     .clickable {
-                                        val nextBody = if (note.body.isBlank()) tpl.defaultBody else "${note.body}\n\n${tpl.defaultBody}"
-                                        updateBodyWithHistory(nextBody)
+                                        val prefix = if (note.body.isBlank()) "" else "${note.body}\n\n"
+                                        val offset = prefix.length
+                                        val nextBody = "$prefix${tpl.defaultBody}"
+                                        val shiftedTemplateSpans = tpl.defaultSpans.map {
+                                            it.copy(start = it.start + offset, end = it.end + offset)
+                                        }
+                                        val nextSpans = normalizeAndCompactSpans(
+                                            note.richSpans + shiftedTemplateSpans,
+                                            nextBody.length
+                                        )
+                                        commitBodyAndSpans(
+                                            newText = nextBody,
+                                            newSpans = nextSpans,
+                                            newSelection = TextRange(nextBody.length)
+                                        )
                                         if (note.title.isBlank()) {
                                             onUpdateNote(tpl.defaultTitle, nextBody, false, null, null, tpl.folder, null, null)
                                         }
@@ -1327,6 +1748,157 @@ fun NoteEditorPane(
                     }
                 }
             }
+        }
+
+        if (showCustomColorDialog) {
+            CustomColorPickerDialog(
+                hasSelection = !bodyFieldValue.selection.collapsed,
+                currentTextColorArgb = liveFormatState.textColorArgb ?: note.bodyTextColorArgb,
+                currentHighlightArgb = liveFormatState.highlightColorArgb,
+                defaultTextColor = tokens.textPrimary,
+                accentColor = tokens.accentStart,
+                isKhmer = isKhmer,
+                onDismiss = { showCustomColorDialog = false },
+                onApplyTextColor = { argb, applyToWholeNote ->
+                    val sel = bodyFieldValue.selection
+                    if (!sel.collapsed) {
+                        val updated = applySpanFormat(
+                            textLength = bodyFieldValue.text.length,
+                            rangeStart = sel.start,
+                            rangeEnd = sel.end,
+                            spans = note.richSpans
+                        ) { it.copy(textColorArgb = argb) }
+                        applySpansOnly(updated)
+                    } else if (applyToWholeNote) {
+                        onUpdateRichFormatting(
+                            null, null, null, argb, argb == null, null
+                        )
+                        typingStyle = typingStyle.copy(textColorArgb = argb)
+                    } else {
+                        typingStyle = typingStyle.copy(textColorArgb = argb)
+                    }
+                },
+                onApplyHighlightColor = { argb ->
+                    val sel = bodyFieldValue.selection
+                    if (!sel.collapsed) {
+                        val updated = applySpanFormat(
+                            textLength = bodyFieldValue.text.length,
+                            rangeStart = sel.start,
+                            rangeEnd = sel.end,
+                            spans = note.richSpans
+                        ) { it.copy(highlightColorArgb = argb) }
+                        applySpansOnly(updated)
+                    } else {
+                        typingStyle = typingStyle.copy(highlightColorArgb = argb)
+                    }
+                }
+            )
+        }
+
+        if (showFontStyleDialog) {
+            FontStylePickerDialog(
+                hasSelection = !bodyFieldValue.selection.collapsed,
+                currentNoteFontStyleId = liveFormatState.fontStyleId ?: note.bodyFontStyle,
+                accentColor = tokens.accentStart,
+                isKhmer = isKhmer,
+                onDismiss = { showFontStyleDialog = false },
+                onSelectFontStyle = { styleId, applyToWholeNote ->
+                    val sel = bodyFieldValue.selection
+                    if (!sel.collapsed) {
+                        val updated = applySpanFormat(
+                            textLength = bodyFieldValue.text.length,
+                            rangeStart = sel.start,
+                            rangeEnd = sel.end,
+                            spans = note.richSpans
+                        ) { it.copy(fontStyleId = styleId) }
+                        applySpansOnly(updated)
+                    } else if (applyToWholeNote) {
+                        onUpdateRichFormatting(null, styleId, null, null, false, null)
+                        typingStyle = typingStyle.copy(fontStyleId = styleId)
+                    } else {
+                        typingStyle = typingStyle.copy(fontStyleId = styleId)
+                    }
+                }
+            )
+        }
+
+        if (showInsertLinkDialog) {
+            val sel = bodyFieldValue.selection
+            val selectedLabel = if (!sel.collapsed) {
+                bodyFieldValue.text.substring(
+                    minOf(sel.start, sel.end).coerceIn(0, bodyFieldValue.text.length),
+                    maxOf(sel.start, sel.end).coerceIn(0, bodyFieldValue.text.length)
+                )
+            } else ""
+            InsertLinkDialog(
+                initialLabel = selectedLabel,
+                accentColor = tokens.accentStart,
+                onDismiss = { showInsertLinkDialog = false },
+                onConfirm = { cleanLabel, cleanUrl ->
+                    val st = minOf(sel.start, sel.end).coerceIn(0, bodyFieldValue.text.length)
+                    val en = maxOf(sel.start, sel.end).coerceIn(0, bodyFieldValue.text.length)
+                    val prefixSpace = if (st > 0 && !bodyFieldValue.text[st - 1].isWhitespace() && sel.collapsed) " " else ""
+                    val inserted = "$prefixSpace$cleanLabel"
+                    val newText = bodyFieldValue.text.substring(0, st) + inserted + bodyFieldValue.text.substring(en)
+                    val linkStart = st + prefixSpace.length
+                    val linkEnd = linkStart + cleanLabel.length
+                    val shifted = adjustSpansForTextEdit(
+                        oldText = bodyFieldValue.text,
+                        newText = newText,
+                        spans = note.richSpans,
+                        typingStyle = TypingFormatState()
+                    )
+                    val withLink = applySpanFormat(
+                        textLength = newText.length,
+                        rangeStart = linkStart,
+                        rangeEnd = linkEnd,
+                        spans = shifted
+                    ) { it.copy(linkUrl = cleanUrl, isUnderline = true) }
+                    commitBodyAndSpans(
+                        newText = newText,
+                        newSpans = withLink,
+                        newSelection = TextRange(linkEnd)
+                    )
+                }
+            )
+        }
+
+        if (showInsertTableDialog) {
+            InsertTableDialog(
+                accentColor = tokens.accentStart,
+                onDismiss = { showInsertTableDialog = false },
+                onConfirm = { rows, cols ->
+                    val headerRow = (1..cols).joinToString("  |  ") { c -> "Column $c" }
+                    val dataRows = (1..rows).joinToString("\n") { r ->
+                        (1..cols).joinToString("  |  ") { c -> "Item $r.$c" }
+                    }
+                    val tableBlock = "$headerRow\n$dataRows"
+                    val pos = bodyFieldValue.selection.end.coerceIn(0, bodyFieldValue.text.length)
+                    val lead = if (pos == 0 || bodyFieldValue.text.getOrNull(pos - 1) == '\n') "" else "\n"
+                    val trail = "\n"
+                    val insertion = "$lead$tableBlock$trail"
+                    val newText = bodyFieldValue.text.substring(0, pos) + insertion + bodyFieldValue.text.substring(pos)
+                    val headerStart = pos + lead.length
+                    val headerEnd = headerStart + headerRow.length
+                    val shifted = adjustSpansForTextEdit(
+                        oldText = bodyFieldValue.text,
+                        newText = newText,
+                        spans = note.richSpans,
+                        typingStyle = TypingFormatState()
+                    )
+                    val withBoldHeader = applySpanFormat(
+                        textLength = newText.length,
+                        rangeStart = headerStart,
+                        rangeEnd = headerEnd,
+                        spans = shifted
+                    ) { it.copy(isBold = true) }
+                    commitBodyAndSpans(
+                        newText = newText,
+                        newSpans = withBoldHeader,
+                        newSelection = TextRange((pos + insertion.length).coerceIn(0, newText.length))
+                    )
+                }
+            )
         }
 
         if (showHistoryDialog) {
@@ -1395,6 +1967,8 @@ private fun FormatChip(
     label: String,
     testTag: String,
     icon: ImageVector? = null,
+    active: Boolean = false,
+    swatchColor: Color? = null,
     onClick: () -> Unit
 ) {
     val tokens = LocalGlassTokens.current
@@ -1402,8 +1976,12 @@ private fun FormatChip(
         modifier = Modifier
             .testTag(testTag)
             .clip(RoundedCornerShape(10.dp))
-            .background(tokens.fieldFill)
-            .border(1.dp, tokens.panelBorder, RoundedCornerShape(10.dp))
+            .background(if (active) tokens.accentStart.copy(alpha = 0.25f) else tokens.fieldFill)
+            .border(
+                width = 1.dp,
+                color = if (active) tokens.accentStart else tokens.panelBorder,
+                shape = RoundedCornerShape(10.dp)
+            )
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center
@@ -1412,11 +1990,19 @@ private fun FormatChip(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            if (icon != null) {
+            if (swatchColor != null) {
+                Box(
+                    modifier = Modifier
+                        .size(11.dp)
+                        .clip(CircleShape)
+                        .background(swatchColor)
+                        .border(1.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+                )
+            } else if (icon != null) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = tokens.textPrimary,
+                    tint = if (active) tokens.accentStart else tokens.textPrimary,
                     modifier = Modifier.size(13.dp)
                 )
             }

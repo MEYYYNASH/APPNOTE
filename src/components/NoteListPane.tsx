@@ -117,13 +117,23 @@ export const NoteListPane: React.FC<NoteListPaneProps> = ({
       const done = n.checklist.filter((c) => c.isDone).length;
       return `${done} of ${n.checklist.length} done`;
     }
-    const clean = n.body.replace(/\n+/g, " ").replace(/\s+/g, " ").trim();
+    const clean = n.body
+      .replace(/#st(ly|yl)e#/gi, "")
+      .replace(/^#{1,3}\s+/gm, "")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/==(.*?)==/g, "$1")
+      .replace(/~~(.*?)~~/g, "$1")
+      .replace(/<\/?u>/g, "")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/\n+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     return clean || "No additional text";
   };
 
   const getBarColor = (colorId: Note["color"]) => {
-    const found = NOTE_COLORS.find((c) => c.id === colorId);
-    return found ? found.dot : "#3B82F6";
+    const found = NOTE_COLORS[colorId];
+    return found ? found.dotColor : "#3B82F6";
   };
 
   const activeFolder = selectedFolderId

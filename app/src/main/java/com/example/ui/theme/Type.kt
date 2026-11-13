@@ -18,6 +18,40 @@ val FigtreeFontFamily = FontFamily(
     Font(R.font.figtree, FontWeight.Bold)
 )
 
+val PlayfairFontFamily = FontFamily(
+    Font(R.font.playfair_display, FontWeight.Normal),
+    Font(R.font.playfair_display, FontWeight.Bold)
+)
+
+val RobotoMonoFontFamily = FontFamily(
+    Font(R.font.roboto_mono, FontWeight.Normal),
+    Font(R.font.roboto_mono, FontWeight.Bold)
+)
+
+val CaveatFontFamily = FontFamily(
+    Font(R.font.caveat, FontWeight.Normal),
+    Font(R.font.caveat, FontWeight.Bold)
+)
+
+val SpaceGroteskFontFamily = FontFamily(
+    Font(R.font.space_grotesk, FontWeight.Normal),
+    Font(R.font.space_grotesk, FontWeight.Bold)
+)
+
+fun resolveEditorFontFamily(
+    styleId: String?,
+    fallback: FontFamily = FigtreeFontFamily
+): FontFamily {
+    return when (styleId?.lowercase()) {
+        "serif" -> PlayfairFontFamily
+        "mono" -> RobotoMonoFontFamily
+        "handwritten" -> CaveatFontFamily
+        "geometric" -> SpaceGroteskFontFamily
+        "sans", "" -> fallback
+        else -> fallback
+    }
+}
+
 fun buildAppTypography(
     fontOption: FontOption,
     scale: Float,

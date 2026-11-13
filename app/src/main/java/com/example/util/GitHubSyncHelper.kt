@@ -1888,7 +1888,7 @@ object GitHubSyncHelper {
 
     fun isTrustedHttpsUrl(url: String): Boolean {
         return try {
-            val parsed = Uri.parse(url.trim())
+            val parsed = java.net.URI(url.trim())
             val scheme = parsed.scheme?.lowercase()
             val host = parsed.host?.lowercase() ?: return false
             scheme == "https" && (

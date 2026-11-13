@@ -444,7 +444,8 @@ export const App: React.FC = () => {
     tags: string[],
     folder: string,
     color: NoteColorId,
-    isPinned: boolean
+    isPinned: boolean,
+    extraRich?: Partial<Pick<Note, 'richHtml' | 'bodyFontStyle' | 'bodyTextColor' | 'bodyTextSize' | 'bodyTextAlign'>>
   ) => {
     if (!selectedNoteId) return;
     const now = Date.now();
@@ -461,6 +462,7 @@ export const App: React.FC = () => {
         folder,
         color,
         isPinned,
+        ...(extraRich || {}),
         updatedAt: now,
       };
     });
@@ -573,6 +575,7 @@ export const App: React.FC = () => {
       id: `n_${now}_${Math.random().toString(36).slice(2, 6)}`,
       title: tmpl.defaultTitle,
       body: tmpl.defaultBody,
+      richHtml: tmpl.defaultHtml,
       isChecklist: tmpl.isChecklist,
       checklist: tmpl.checklist ? [...tmpl.checklist] : [],
       color: settings.accent,

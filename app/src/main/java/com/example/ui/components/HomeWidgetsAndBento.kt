@@ -607,7 +607,7 @@ private fun FrostedWidgetCard(
 
 /**
  * Neon glowing filter pill tabs matching Screenshot 4:
- * [⊞ All] [📌 Pinned] [⭐ Favorites] [📁 Folders] [••• More]
+ * [All] [Pinned] [Favorites] [Folders] [... More]
  */
 @Composable
 fun NeonFilterPillsRow(
@@ -843,9 +843,9 @@ private fun NeonFilterPillItem(
  * Glowing 2-column Neon Bento Note Card matching Screenshot 4:
  * - Corner Ribbon Badge (Pin, Star, Calendar, Heart)
  * - Top-right `⋮` overflow action menu
- * - Interactive purple checklist items (`✔ Milk`, `✔ Bread`, `○ Coffee`) or rich text preview
- * - Custom decorative illustration on the right (Laptop, Shopping Cart, Meeting People, Smiling Emoji with Hearts)
- * - Bottom clock icon + formatted timestamp (`Today • 10:24 AM`)
+ * - Interactive purple checklist items or rich text preview
+ * - Custom decorative illustration on the right (Laptop, Shopping Cart, Meeting People, Badge)
+ * - Bottom clock icon + formatted timestamp
  */
 @Composable
 fun NeonBentoNoteCard(
@@ -1177,12 +1177,11 @@ fun NeonBentoNoteCard(
                         }
                     }
                 } else {
-                    val cleanPreview = remember(note.body) {
-                        note.body
-                            .replace(Regex("^[#*>-]+\\s*", RegexOption.MULTILINE), "")
-                            .replace("**", "")
-                            .replace("`", "")
-                            .trim()
+                    val cleanPreview = remember(note.body, note.richSpans) {
+                        com.example.ui.components.convertLegacyMarkdownToRichText(
+                            note.body,
+                            note.richSpans
+                        ).first.trim()
                     }
                     Text(
                         text = cleanPreview.ifBlank { "Tap to write..." },
@@ -1351,7 +1350,7 @@ private fun BentoCardIllustration(type: String) {
 
 /**
  * Bottom Floating Action Dock matching Screenshot 4:
- * Left pill: `[📁 Personal ⌄ | 📊 24 Notes]`
+ * Left pill: `[Personal | 24 Notes]`
  * Right button: Glowing `[+ New Note]`
  */
 @Composable
@@ -1374,7 +1373,7 @@ fun NeonBentoBottomBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Left Glass Pill: [📁 Personal ⌄ | 📊 24 Notes]
+        // Left Glass Pill: [Personal | 24 Notes]
         Row(
             modifier = Modifier
                 .weight(1f)

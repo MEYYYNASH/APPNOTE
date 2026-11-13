@@ -117,10 +117,17 @@ export interface ActivityLogEntry {
   action: string;
 }
 
+export type EditorFontStyleId = 'sans' | 'serif' | 'mono' | 'handwritten' | 'geometric';
+
 export interface Note {
   id: string;
   title: string;
   body: string;
+  richHtml?: string;
+  bodyFontStyle?: EditorFontStyleId;
+  bodyTextColor?: string;
+  bodyTextSize?: string;
+  bodyTextAlign?: 'left' | 'center' | 'right';
   isChecklist: boolean;
   checklist: ChecklistItem[];
   color: NoteColorId;

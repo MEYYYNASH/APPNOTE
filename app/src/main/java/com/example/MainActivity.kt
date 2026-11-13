@@ -356,6 +356,19 @@ fun GlassNotesApp(
                                             )
                                         }
                                     },
+                                    onUpdateRichFormatting = { spans, fontStyle, fontSizeSp, textColorArgb, clearTextColor, textAlign ->
+                                        selectedNote?.let { n ->
+                                            viewModel.updateNoteContent(
+                                                noteId = n.id,
+                                                richSpans = spans,
+                                                bodyFontStyle = fontStyle,
+                                                bodyFontSizeSp = fontSizeSp,
+                                                bodyTextColorArgb = textColorArgb,
+                                                clearBodyTextColor = clearTextColor,
+                                                bodyTextAlign = textAlign
+                                            )
+                                        }
+                                    },
                                     onDeleteNote = {
                                         selectedNote?.let { viewModel.moveToTrash(it.id) }
                                     },
@@ -444,6 +457,17 @@ fun GlassNotesApp(
                                                 folder = folder,
                                                 color = color,
                                                 isPinned = pin
+                                            )
+                                        },
+                                        onUpdateRichFormatting = { spans, fontStyle, fontSizeSp, textColorArgb, clearTextColor, textAlign ->
+                                            viewModel.updateNoteContent(
+                                                noteId = selectedNote.id,
+                                                richSpans = spans,
+                                                bodyFontStyle = fontStyle,
+                                                bodyFontSizeSp = fontSizeSp,
+                                                bodyTextColorArgb = textColorArgb,
+                                                clearBodyTextColor = clearTextColor,
+                                                bodyTextAlign = textAlign
                                             )
                                         },
                                         onDeleteNote = {
