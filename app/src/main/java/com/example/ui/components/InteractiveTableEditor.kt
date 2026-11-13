@@ -231,7 +231,7 @@ fun InteractiveTableEditorDialog(
                             rows.forEach { row ->
                                 md += "| " + columns.joinToString(" | ") { col -> row.values[col.id] ?: "" } + " |\n"
                             }
-                            onSave(md)
+                            onSaveMarkdown(md)
                             onDismiss()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = tokens.accentStart)
