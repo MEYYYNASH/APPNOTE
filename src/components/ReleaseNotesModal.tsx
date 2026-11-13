@@ -2,10 +2,10 @@ import React from 'react';
 import {
   X,
   Sparkles,
+  Link,
   Table,
   Crop,
   FileEdit,
-  BellRing,
   Download,
   ExternalLink,
   CheckCircle2,
@@ -21,7 +21,7 @@ interface ReleaseNotesModalProps {
 }
 
 export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
-  version = 'v1.2.02',
+  version = 'v1.2.5',
   isOpen,
   onClose,
   onDownloadApk,
@@ -41,13 +41,13 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold tracking-tight">Features Preview v1.2.02</h2>
+                <h2 className="text-xl font-bold tracking-tight">Release v1.2.5</h2>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Latest v1.2.2 Release
+                  Latest Release
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                Professional Interactive Tables, Sleek Flat Crop UI, Immersive Read Mode & Advanced Grid System
+                Link Clickability Fix, Professional Interactive Tables & Sleek Flat Crop UI
               </p>
             </div>
           </div>
@@ -62,11 +62,32 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
         {/* Scrollable Feature Sections */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm">
           
-          {/* Suite 1: Professional Interactive Tables */}
+          {/* Suite 1: Link Clickability Fix */}
+          <div className="p-4 rounded-2xl glass-field border border-white/10 space-y-3">
+            <div className="flex items-center gap-2.5 text-sky-400 font-bold text-base">
+              <Link size={20} />
+              <h3>1. Link Clickability Fix (v1.2.5)</h3>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Resolved issues where tapping or clicking text links inside notes did not properly navigate or open URLs. Links are now fully clickable and interactive in both Read Mode and Edit Mode.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={14} className="text-sky-400 flex-none" />
+                <span>Instant link navigation in Reading Mode</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 size={14} className="text-sky-400 flex-none" />
+                <span>Ctrl+Click / Cmd+Click links in Edit Mode</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Suite 2: Professional Interactive Tables */}
           <div className="p-4 rounded-2xl glass-field border border-white/10 space-y-3">
             <div className="flex items-center gap-2.5 text-blue-400 font-bold text-base">
               <Table size={20} />
-              <h3>1. Professional Interactive Table System (v1.2.02)</h3>
+              <h3>2. Professional Interactive Table System</h3>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
               Notion Database + Excel + Numbers inspired fully interactive visual grid system built directly into APPNOTE.
@@ -88,22 +109,14 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
                 <CheckCircle2 size={14} className="text-emerald-400 flex-none" />
                 <span>Add, Delete & Rename Rows and Columns</span>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-emerald-400 flex-none" />
-                <span>Sorting, Filtering & Instant Search</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-emerald-400 flex-none" />
-                <span>Pre-built Templates & CSV Export</span>
-              </div>
             </div>
           </div>
 
-          {/* Suite 2: Sleek Flat Crop & Scan UI */}
+          {/* Suite 3: Sleek Flat Crop & Scan UI */}
           <div className="p-4 rounded-2xl glass-field border border-white/10 space-y-3">
             <div className="flex items-center gap-2.5 text-cyan-400 font-bold text-base">
               <Crop size={20} />
-              <h3>2. Sleek Flat Crop & Scan UI (សំប៉ែត)</h3>
+              <h3>3. Sleek Flat Crop & Scan UI (សំប៉ែត)</h3>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
               Redesigned high-end minimalist crop editor with flat proportions, flush aspect ratio chips, and glowing corner handles.
@@ -117,35 +130,6 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
                 <CheckCircle2 size={14} className="text-cyan-400 flex-none" />
                 <span>Aspect ratio presets (Free, 1:1, 4:3, 16:9)</span>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-cyan-400 flex-none" />
-                <span>Precise rule-of-thirds grid preview</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-cyan-400 flex-none" />
-                <span>Instant 90° rotation & high-contrast scan filter</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Suite 3: Immersive Reading Mode */}
-          <div className="p-4 rounded-2xl glass-field border border-white/10 space-y-3">
-            <div className="flex items-center gap-2.5 text-purple-400 font-bold text-base">
-              <FileEdit size={20} />
-              <h3>3. Immersive Reading Mode & Typography</h3>
-            </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Distraction-free reading environment with curated typography, generous padding, and polished glassmorphic styling.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Immersive reading container with slate gradient</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Custom font styling & typography scaling</span>
-              </div>
             </div>
           </div>
 
@@ -156,7 +140,7 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
               <span>Installation & Package Conflict Note</span>
             </div>
             <p>
-              If your phone displays <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 version first, then install <strong>v1.2.02</strong> for a smooth, conflict-free setup.
+              If your phone displays <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 version first, then install <strong>v1.2.5</strong> for a smooth, conflict-free setup.
             </p>
           </div>
         </div>
@@ -181,15 +165,15 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
               Close
             </button>
             <a
-              href={`https://github.com/${githubOwnerRepo}/releases/download/v1.2.02/GlassNotes.apk`}
-              download="GlassNotes-v1.2.02.apk"
+              href={`https://github.com/${githubOwnerRepo}/releases/download/v1.2.5/GlassNotes.apk`}
+              download="GlassNotes-v1.2.5.apk"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => onDownloadApk?.()}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all"
             >
               <Download size={14} />
-              <span>Download v1.2.02 APK</span>
+              <span>Download v1.2.5 APK</span>
             </a>
           </div>
         </div>

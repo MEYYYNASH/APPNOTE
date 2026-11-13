@@ -1370,6 +1370,13 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
                 <span>Immersive Reading Mode</span>
               </div>
               <div
+                onClick={(e) => {
+                  const target = (e.target as HTMLElement).closest('a');
+                  if (target && target instanceof HTMLAnchorElement && target.href) {
+                    e.preventDefault();
+                    window.open(target.href, '_blank');
+                  }
+                }}
                 style={{
                   fontFamily: activeFontCss,
                   fontSize: activeTextSize,
@@ -1389,6 +1396,15 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
               onKeyUp={saveCurrentSelection}
               onMouseUp={saveCurrentSelection}
               onBlur={saveCurrentSelection}
+              onClick={(e) => {
+                const target = (e.target as HTMLElement).closest('a');
+                if (target && target instanceof HTMLAnchorElement && target.href) {
+                  if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    window.open(target.href, '_blank');
+                  }
+                }
+              }}
               data-placeholder={strings.bodyPlaceholder}
               style={{
                 fontFamily: activeFontCss,
