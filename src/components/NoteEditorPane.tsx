@@ -280,7 +280,7 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   const [audioProgress, setAudioProgress] = useState(0);
 
   // Editor View Modes
-  const [isReadingMode, setIsReadingMode] = useState(false);
+  const [isReadingMode, setIsReadingMode] = useState(true);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
   // Undo/Redo snapshots of { body, html }
@@ -807,15 +807,17 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
           <span className="hidden sm:inline">Scan</span>
         </button>
 
-        {/* Reading Mode Toggle */}
+        {/* Edit Note / Read Mode Button */}
         <button
           onClick={() => setIsReadingMode((v) => !v)}
-          title="Reading Mode"
-          className={`w-8 h-8 rounded-full glass-field flex items-center justify-center transition-all flex-none ${
-            isReadingMode ? 'bg-amber-500 text-white shadow-sm' : 'hover:opacity-80'
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+            isReadingMode
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:brightness-110'
+              : 'glass-field text-slate-200 hover:bg-white/10'
           }`}
         >
-          <BookOpen size={14} />
+          {isReadingMode ? <Edit3 size={14} /> : <BookOpen size={14} />}
+          <span>{isReadingMode ? 'Edit Note' : 'Read'}</span>
         </button>
 
         {/* Pin toggle */}

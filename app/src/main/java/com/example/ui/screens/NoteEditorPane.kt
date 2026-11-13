@@ -338,7 +338,7 @@ fun NoteEditorPane(
         var tagsInput by remember(note.id) { mutableStateOf(note.tags.joinToString(", ")) }
 
         var isFullScreenEditor by remember { mutableStateOf(false) }
-        var isReadingMode by remember { mutableStateOf(false) }
+        var isReadingMode by remember(note.id) { mutableStateOf(true) }
         var showRichFormatBar by remember { mutableStateOf(true) }
 
         var bodyFieldValue by remember(note.id) {
@@ -698,10 +698,10 @@ fun NoteEditorPane(
                         }
                     )
 
-                    // Reading Mode Toggle
+                    // Edit Note / Read Mode Toggle
                     SmallTextChipButton(
-                        label = if (isReadingMode) "Reading" else "Read",
-                        icon = Icons.AutoMirrored.Rounded.MenuBook,
+                        label = if (isReadingMode) "Edit Note" else "Read",
+                        icon = if (isReadingMode) Icons.Rounded.BorderColor else Icons.AutoMirrored.Rounded.MenuBook,
                         active = isReadingMode,
                         testTag = "editor_reading_mode_button",
                         onClick = { isReadingMode = !isReadingMode }
