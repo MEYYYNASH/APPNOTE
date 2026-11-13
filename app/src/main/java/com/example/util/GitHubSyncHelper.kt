@@ -1331,7 +1331,7 @@ object GitHubSyncHelper {
      * Strictly normalizes any user input into a valid Git tag (e.g. "v1.1.8").
      * Prevents GitHub's "Make sure you have a valid tag" error.
      */
-    fun sanitizeGitTag(rawInput: String, fallback: String = "v1.2.0"): String {
+    fun sanitizeGitTag(rawInput: String, fallback: String = "v1.2.01"): String {
         val trimmed = rawInput.trim()
         if (trimmed.isEmpty()) return fallback
         val cleaned = trimmed
@@ -1348,11 +1348,11 @@ object GitHubSyncHelper {
     }
 
     /**
-     * Builds a pre-filled GitHub New Release web URL (`?tag=v1.2.0&title=...&body=...`)
+     * Builds a pre-filled GitHub New Release web URL (`?tag=v1.2.01&title=...&body=...`)
      * so GitHub Web automatically populates a valid tag and never fails with "Make sure you have a valid tag".
      */
     fun buildNewReleaseWebUrl(tagNameInput: String, releaseNotesInput: String): String {
-        val validTag = sanitizeGitTag(tagNameInput, "v1.2.0")
+        val validTag = sanitizeGitTag(tagNameInput, "v1.2.01")
         val title = "APPNOTE $validTag"
         val body = if (releaseNotesInput.isNotBlank()) {
             releaseNotesInput.trim()
@@ -1571,7 +1571,7 @@ object GitHubSyncHelper {
             )
         }
 
-        val tagName = sanitizeGitTag(tagNameInput, "v1.2.0")
+        val tagName = sanitizeGitTag(tagNameInput, "v1.2.01")
         val cleanVersion = tagName.removePrefix("v").removePrefix("V")
         val remoteVersionCode = deriveVersionCodeFromTag(tagName).coerceAtLeast(installed.versionCode + 1L)
 
@@ -1708,7 +1708,7 @@ object GitHubSyncHelper {
                 }
             }
 
-            // Delete any stale assets on this release so fresh v1.2.0 assets overwrite cleanly
+            // Delete any stale assets on this release so fresh v1.2.01 assets overwrite cleanly
             listOf("release-metadata.json", "app-release.apk.sha256", "app-release.apk", "GlassNotes.apk").forEach { assetName ->
                 deleteReleaseAssetIfPresent(releaseJson, assetName, cleanToken)
             }

@@ -546,19 +546,20 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
   };
 
   const handleInsertTable = () => {
-    let html = '<table style="width:100%;border-collapse:collapse;margin:8px 0;"><thead><tr>';
+    let html = '<div style="overflow-x:auto; margin:12px 0;"><table style="width:100%;border-collapse:collapse;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.2);"><thead><tr style="background:linear-gradient(135deg,rgba(37,99,235,0.3),rgba(79,70,229,0.3));">';
     for (let c = 1; c <= tableCols; c++) {
-      html += `<th style="border:1px solid rgba(148,163,184,0.35);padding:6px 10px;text-align:left;background:rgba(59,130,246,0.12);">Column ${c}</th>`;
+      html += `<th style="padding:10px 14px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.2);color:#93c5fd;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Column ${c}</th>`;
     }
     html += '</tr></thead><tbody>';
     for (let r = 1; r <= tableRows; r++) {
-      html += '<tr>';
+      const bg = r % 2 === 0 ? 'background:rgba(255,255,255,0.04);' : '';
+      html += `<tr style="${bg}">`;
       for (let c = 1; c <= tableCols; c++) {
-        html += `<td style="border:1px solid rgba(148,163,184,0.28);padding:6px 10px;">Item ${r}.${c}</td>`;
+        html += `<td style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.1);font-size:12px;color:#e2e8f0;">Item ${r}.${c}</td>`;
       }
       html += '</tr>';
     }
-    html += '</tbody></table><p><br></p>';
+    html += '</tbody></table></div><p><br></p>';
     pushSnapshot();
     restoreSavedSelection();
     document.execCommand('insertHTML', false, html);
@@ -1360,16 +1361,22 @@ export const NoteEditorPane: React.FC<NoteEditorPaneProps> = ({
               )}
             </div>
           ) : isReadingMode || isMarkdownPreview ? (
-            <div
-              style={{
-                fontFamily: activeFontCss,
-                fontSize: activeTextSize,
-                textAlign: activeTextAlign,
-                color: note.bodyTextColor || undefined,
-              }}
-              className="prose dark:prose-invert max-w-none leading-relaxed py-2 [&_h1]:text-2xl [&_h1]:font-extrabold [&_h2]:text-xl [&_h2]:font-bold [&_h3]:text-lg [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-500 [&_blockquote]:pl-3 [&_blockquote]:italic"
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
-            />
+            <div className="max-w-4xl mx-auto p-6 sm:p-10 rounded-3xl glass-card border border-white/30 shadow-2xl bg-gradient-to-br from-slate-900/95 via-slate-900/80 to-indigo-950/90 text-white my-4">
+              <div className="flex items-center gap-2 pb-4 mb-6 border-b border-white/10 text-xs font-bold text-amber-400 uppercase tracking-widest">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                <span>Immersive Reading Mode</span>
+              </div>
+              <div
+                style={{
+                  fontFamily: activeFontCss,
+                  fontSize: activeTextSize,
+                  textAlign: activeTextAlign,
+                  color: note.bodyTextColor || undefined,
+                }}
+                className="prose prose-invert max-w-none leading-relaxed [&_h1]:text-3xl [&_h1]:font-extrabold [&_h1]:text-transparent [&_h1]:bg-clip-text [&_h1]:bg-gradient-to-r [&_h1]:from-blue-400 [&_h1]:to-indigo-400 [&_h1]:my-4 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-indigo-300 [&_h2]:my-3 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:my-2 [&_p]:text-slate-200 [&_p]:leading-relaxed [&_p]:my-2.5 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-slate-300 [&_blockquote]:bg-blue-500/10 [&_blockquote]:py-2 [&_blockquote]:rounded-r-xl [&_blockquote]:my-3 [&_code]:px-2 [&_code]:py-1 [&_code]:rounded-lg [&_code]:bg-blue-500/20 [&_code]:text-cyan-300 [&_code]:font-mono [&_code]:text-xs [&_table]:w-full [&_table]:border-collapse [&_table]:my-4 [&_table]:overflow-hidden [&_table]:rounded-2xl [&_table]:border [&_table]:border-white/20 [&_table]:bg-black/20 [&_th]:bg-gradient-to-r [&_th]:from-blue-600/30 [&_th]:to-indigo-600/30 [&_th]:text-blue-200 [&_th]:font-extrabold [&_th]:px-4 [&_th]:py-3 [&_th]:border-b [&_th]:border-white/20 [&_th]:text-left [&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wider [&_td]:px-4 [&_td]:py-3 [&_td]:border-b [&_td]:border-white/10 [&_td]:text-xs [&_tr:nth-child(even)]:[&_td]:bg-white/5 [&_tr:hover]:[&_td]:bg-white/10"
+                dangerouslySetInnerHTML={{ __html: previewHtml }}
+              />
+            </div>
           ) : (
             <div
               ref={editorRef}

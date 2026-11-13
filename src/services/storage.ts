@@ -25,8 +25,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   githubOwnerRepo: 'MEYYYNASH/APPNOTE',
   githubBranch: 'main',
   githubToken: '',
-  appVersion: '1.2.0',
-  latestAvailableVersion: 'v1.2.0',
+  appVersion: '1.2.01',
+  latestAvailableVersion: 'v1.2.01',
   includePrereleases: false,
 };
 
@@ -231,7 +231,7 @@ export function createSeedNotes(): Note[] {
     {
       id: 'bento-daily-journal',
       title: 'Daily Journal',
-      body: 'Today is a great day! Focused on shipping v1.2.0 with Live WYSIWYG formatting, Custom Color & Font Pickers, crisp vector Icon logos, and Jetpack Glance Home Screen widgets.',
+      body: 'Today is a great day! Focused on shipping v1.2.01 with Live WYSIWYG formatting, Custom Color & Font Pickers, crisp vector Icon logos, and Jetpack Glance Home Screen widgets.',
       isChecklist: false,
       checklist: [],
       color: 'pink',

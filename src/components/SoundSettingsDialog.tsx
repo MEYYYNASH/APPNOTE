@@ -272,22 +272,7 @@ export const SoundSettingsDialog: React.FC<SoundSettingsDialogProps> = ({
                 {isKhmer ? 'សំឡេងរោទ៍រំលឹក' : 'Ringtone & Melody'}
               </span>
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Import from Device"
-                  className="px-2.5 py-1 rounded-xl glass-field flex items-center gap-1 hover:text-blue-500 font-semibold"
-                >
-                  <Upload size={12} />
-                  <span>Device</span>
-                </button>
-                <button
-                  onClick={() => driveInputRef.current?.click()}
-                  title="Import from Google Drive / Files"
-                  className="px-2.5 py-1 rounded-xl glass-field flex items-center gap-1 hover:text-blue-500 font-semibold"
-                >
-                  <FolderUp size={12} />
-                  <span>Drive</span>
-                </button>
+                <span className="text-[11px] text-slate-400 font-medium">Preset Ringtones</span>
               </div>
             </div>
 

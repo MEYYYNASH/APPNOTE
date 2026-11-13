@@ -21,7 +21,7 @@ interface ReleaseNotesModalProps {
 }
 
 export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
-  version = 'v1.2.0',
+  version = 'v1.2.01',
   isOpen,
   onClose,
   onDownloadApk,
@@ -217,7 +217,7 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
               <span>Installation & Package Conflict Note</span>
             </div>
             <p>
-              If your phone displays <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 version first, then install <strong>v1.2.0</strong> for a smooth, conflict-free setup.
+              If your phone displays <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 version first, then install <strong>v1.2.01</strong> for a smooth, conflict-free setup.
             </p>
           </div>
         </div>
@@ -242,15 +242,15 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
               Close
             </button>
             <a
-              href={`https://github.com/${githubOwnerRepo}/releases/download/v1.2.0/GlassNotes.apk`}
-              download="GlassNotes-v1.2.0.apk"
+              href={`https://github.com/${githubOwnerRepo}/releases/download/v1.2.01/GlassNotes.apk`}
+              download="GlassNotes-v1.2.01.apk"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => onDownloadApk?.()}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all"
             >
               <Download size={14} />
-              <span>Download v1.2.0 APK</span>
+              <span>Download v1.2.01 APK</span>
             </a>
           </div>
         </div>

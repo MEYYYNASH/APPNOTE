@@ -320,8 +320,8 @@ export const TRANSLATIONS: Record<LanguageOption, AppStrings> = {
     copyBackupBtn: "Copy backup",
     restoreBackupBtn: "Restore backup",
     
-    aboutTitle: "Notes, version 1.2.0",
-    backendNotice: "Notes, version 1.2.0 (com.aistudio.glassnotes.vqpzxm). Data stays on this device in localStorage (with in-memory fallback). Use GitHub Sync above to push releases and JSON backups directly to your repository.",
+    aboutTitle: "Notes, version 1.2.01",
+    backendNotice: "Notes, version 1.2.01 (com.aistudio.glassnotes.vqpzxm). Data stays on this device in localStorage (with in-memory fallback). Use GitHub Sync above to push releases and JSON backups directly to your repository.",
     trashBanner: "Deleted · tap any note to restore",
     emptyNotesHint: "No notes yet. Tap + to write your first one.",
     undoLabel: "Undo",
@@ -396,7 +396,7 @@ export const TRANSLATIONS: Record<LanguageOption, AppStrings> = {
     copyBackupBtn: "ចម្លងទិន្នន័យបម្រុង",
     restoreBackupBtn: "ស្តារទិន្នន័យបម្រុង",
     
-    aboutTitle: "Notes, កំណែ 1.2.0",
+    aboutTitle: "Notes, កំណែ 1.2.01",
     backendNotice: "ទិន្នន័យទាំងអស់រក្សាទុកក្នុងឧបករណ៍នេះ។ អ្នកអាចរុញឯកសារ APK និងទិន្នន័យបម្រុងទៅកាន់ GitHub ផ្ទាល់ពីផ្នែកខាងលើ។",
     trashBanner: "បានលុប · ចុចដើម្បីស្តារឡើងវិញ",
     emptyNotesHint: "មិនទាន់មានកំណត់ត្រាទេ។ ចុច + ដើម្បីសរសេរ។",

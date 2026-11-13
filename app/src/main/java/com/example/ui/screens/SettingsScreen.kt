@@ -84,7 +84,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.fillMaxHeight
 import com.example.ui.components.AppGlassLogo
-import com.example.ui.components.CustomReminderSoundSettingsCard
 import com.example.ui.components.GlassActionPill
 import com.example.ui.components.GlassIconButton
 import com.example.ui.components.GlassOuterPane
@@ -1096,17 +1095,6 @@ fun SettingsScreen(
                                 )
                             }
                         }
-                    }
-
-                    // Card 1B: Suite 4 — Custom Reminder & Sound Settings (24 controls)
-                    item {
-                        CustomReminderSoundSettingsCard(
-                            settings = settings,
-                            accentColor = tokens.accentStart,
-                            isKhmer = isKm,
-                            onUpdateSettings = onUpdateSettings,
-                            onShowToast = onShowToast
-                        )
                     }
 
                     // Card 2: Main Settings & Font Import from Drive
