@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -159,9 +160,9 @@ fun SettingsScreen(
     var speedTestResult by remember { mutableStateOf<SpeedTestResult?>(null) }
     var showReleaseNotesDialog by remember { mutableStateOf(false) }
     var showPublishReleaseDialog by remember { mutableStateOf(false) }
-    var publishTagInput by remember { mutableStateOf("v1.1.20") }
+    var publishTagInput by remember { mutableStateOf("v1.2.0") }
     var publishNotesInput by remember {
-        mutableStateOf("APPNOTE v1.1.20: Clean Vector Icon Logo UI (zero emojis), Jetpack Glance Home Screen Widgets Studio (Small/Medium/Large, live customization, Room/DataStore/WorkManager sync, alarm & boot recovery), Folders Manager, Document Scanner (OCR & PDF), and Custom Reminder Sounds.")
+        mutableStateOf("APPNOTE v1.2.0: Live WYSIWYG Rich-Text Editor (zero raw markdown tokens), Custom Text & Highlight Color Picker, Real Font Style Picker (Figtree, Playfair Display, Roboto Mono, Caveat, Space Grotesk), Clean Vector Icon Logo UI (zero emojis), Jetpack Glance Home Screen Widgets Studio, Folders Manager, Document Scanner (OCR & PDF), and Custom Reminder Sounds.")
     }
     var publishTokenInput by remember(settings.githubToken) { mutableStateOf(settings.githubToken) }
     var isPublishingRelease by remember { mutableStateOf(false) }
@@ -1607,7 +1608,7 @@ fun SettingsScreen(
                         )
                     }
 
-                    val normalizedTag = GitHubSyncHelper.sanitizeGitTag(publishTagInput, "v1.1.20")
+                    val normalizedTag = GitHubSyncHelper.sanitizeGitTag(publishTagInput, "v1.2.0")
 
                     Text(
                         text = "Target: ${GitHubSyncHelper.OFFICIAL_REPO_SLUG}/releases • Valid Tag: $normalizedTag",
@@ -1622,7 +1623,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        listOf("v1.1.20", "v1.2.0", "v1.2.1").forEach { presetTag ->
+                        listOf("v1.2.0", "v1.2.1", "v1.3.0").forEach { presetTag ->
                             val isSelectedTag = normalizedTag.equals(presetTag, ignoreCase = true)
                             Box(
                                 modifier = Modifier
@@ -1948,6 +1949,7 @@ private fun queryDisplayName(context: Context, uri: Uri): String? {
     }
 }
 
+@SuppressLint("ResourceType")
 private fun copyBundledFontAsCustom(context: Context): File {
     val destFile = File(context.filesDir, "custom_imported_font.ttf")
     try {

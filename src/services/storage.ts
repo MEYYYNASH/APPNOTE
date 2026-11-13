@@ -25,8 +25,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   githubOwnerRepo: 'MEYYYNASH/APPNOTE',
   githubBranch: 'main',
   githubToken: '',
-  appVersion: '1.1.20',
-  latestAvailableVersion: 'v1.1.20',
+  appVersion: '1.2.0',
+  latestAvailableVersion: 'v1.2.0',
   includePrereleases: false,
 };
 
@@ -231,7 +231,7 @@ export function createSeedNotes(): Note[] {
     {
       id: 'bento-daily-journal',
       title: 'Daily Journal',
-      body: 'Today is a great day! Focused on shipping v1.1.20 with crisp vector Icon logos, real Jetpack Glance Home Screen widgets, and a clean single-column UI.',
+      body: 'Today is a great day! Focused on shipping v1.2.0 with Live WYSIWYG formatting, Custom Color & Font Pickers, crisp vector Icon logos, and Jetpack Glance Home Screen widgets.',
       isChecklist: false,
       checklist: [],
       color: 'pink',
@@ -297,14 +297,16 @@ export function loadSettings(): AppSettings {
       parsed.latestAvailableVersion === 'v1.1.18' ||
       parsed.latestAvailableVersion === '1.1.18' ||
       parsed.latestAvailableVersion === 'v1.1.19' ||
-      parsed.latestAvailableVersion === '1.1.19'
-        ? 'v1.1.20'
+      parsed.latestAvailableVersion === '1.1.19' ||
+      parsed.latestAvailableVersion === 'v1.1.20' ||
+      parsed.latestAvailableVersion === '1.1.20'
+        ? 'v1.2.0'
         : parsed.latestAvailableVersion;
     const upgraded: AppSettings = {
       ...DEFAULT_SETTINGS,
       ...parsed,
       githubOwnerRepo: 'MEYYYNASH/APPNOTE',
-      appVersion: '1.1.20',
+      appVersion: '1.2.0',
       latestAvailableVersion: latestVer,
     };
     saveSettings(upgraded);
@@ -315,7 +317,7 @@ export function loadSettings(): AppSettings {
 }
 
 export function saveSettings(settings: AppSettings): boolean {
-  return safeSet(KEY_SETTINGS, JSON.stringify({ ...settings, appVersion: '1.1.20' }));
+  return safeSet(KEY_SETTINGS, JSON.stringify({ ...settings, appVersion: '1.2.0' }));
 }
 
 export function loadRecentSearches(): string[] {

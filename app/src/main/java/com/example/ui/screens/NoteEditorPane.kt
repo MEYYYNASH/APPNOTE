@@ -204,7 +204,7 @@ private val NOTE_TEMPLATES: List<NoteTemplateOption> by lazy {
             title = "Project Specification",
             subtitle = "Goals, architecture, milestones & deliverables",
             defaultTitle = "Project Ideas",
-            defaultBody = "Project Specification\n\nBuild a modern note app with rich formatting and offline sync.\n\nCore Features\n• Clean Live Rich Formatting\n• Multi-page Document Scanner\n• Custom Reminder Sounds\n\nMilestone  |  Owner  |  Status\nUI Design  |  Design  |  Done\nRelease v1.1.20  |  Eng  |  Active",
+            defaultBody = "Project Specification\n\nBuild a modern note app with rich formatting and offline sync.\n\nCore Features\n• Clean Live Rich Formatting\n• Multi-page Document Scanner\n• Custom Reminder Sounds\n\nMilestone  |  Owner  |  Status\nUI Design  |  Design  |  Done\nRelease v1.2.0  |  Eng  |  Active",
             defaultSpans = listOf(
                 RichTextSpan(0, 21, headingLevel = 1),
                 RichTextSpan(23, 86, isQuote = true),
@@ -234,11 +234,11 @@ private val NOTE_TEMPLATES: List<NoteTemplateOption> by lazy {
             title = "Technical Snippet",
             subtitle = "Code block, architecture notes & links",
             defaultTitle = "Code & Architecture Note",
-            defaultBody = "Technical Note\n\nfun verifyRelease(version: String): Boolean {\n    return version == \"1.1.20\"\n}\n\nReference: GitHub Repository",
+            defaultBody = "Technical Note\n\nfun verifyRelease(version: String): Boolean {\n    return version == \"1.2.0\"\n}\n\nReference: GitHub Repository",
             defaultSpans = listOf(
                 RichTextSpan(0, 14, headingLevel = 1),
                 RichTextSpan(16, 94, isCode = true),
-                RichTextSpan(107, 124, linkUrl = "https://github.com/MEYYYNASH/APPNOTE")
+                RichTextSpan(106, 123, linkUrl = "https://github.com/MEYYYNASH/APPNOTE")
             ),
             folder = "Projects",
             icon = Icons.Rounded.Code

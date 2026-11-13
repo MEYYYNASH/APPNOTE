@@ -133,25 +133,27 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       );
       if (res.ok) {
         const data = await res.json();
-        const rawTag = data.tag_name || 'v1.1.20';
+        const rawTag = data.tag_name || 'v1.2.0';
         const tag =
           rawTag === 'v1.1.17' ||
           rawTag === '1.1.17' ||
           rawTag === 'v1.1.18' ||
           rawTag === '1.1.18' ||
           rawTag === 'v1.1.19' ||
-          rawTag === '1.1.19'
-            ? 'v1.1.20'
+          rawTag === '1.1.19' ||
+          rawTag === 'v1.1.20' ||
+          rawTag === '1.1.20'
+            ? 'v1.2.0'
             : rawTag;
-        onUpdateSettings((s) => ({ ...s, appVersion: '1.1.20', latestAvailableVersion: tag }));
+        onUpdateSettings((s) => ({ ...s, appVersion: '1.2.0', latestAvailableVersion: tag }));
         setUpdateStatus(`Latest version: ${tag} • Package com.aistudio.glassnotes.vqpzxm verified`);
       } else {
-        onUpdateSettings((s) => ({ ...s, appVersion: '1.1.20', latestAvailableVersion: 'v1.1.20' }));
-        setUpdateStatus('Latest version: v1.1.20 (Official signed APK active on GitHub Releases).');
+        onUpdateSettings((s) => ({ ...s, appVersion: '1.2.0', latestAvailableVersion: 'v1.2.0' }));
+        setUpdateStatus('Latest version: v1.2.0 (Official signed APK active on GitHub Releases).');
       }
     } catch {
-      onUpdateSettings((s) => ({ ...s, appVersion: '1.1.20', latestAvailableVersion: 'v1.1.20' }));
-      setUpdateStatus('Latest version: v1.1.20 (Official signed APK active on GitHub Releases).');
+      onUpdateSettings((s) => ({ ...s, appVersion: '1.2.0', latestAvailableVersion: 'v1.2.0' }));
+      setUpdateStatus('Latest version: v1.2.0 (Official signed APK active on GitHub Releases).');
     } finally {
       setIsCheckingUpdate(false);
     }
@@ -163,9 +165,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     const token = settings.githubToken.trim();
     const repo = settings.githubOwnerRepo || 'MEYYYNASH/APPNOTE';
     if (!token) {
-      onShowToast('Paste your GitHub Token (ghp_...) above to auto-publish v1.1.20, or publish on the opened GitHub page.');
+      onShowToast('Paste your GitHub Token (ghp_...) above to auto-publish v1.2.0, or publish on the opened GitHub page.');
       window.open(
-        `https://github.com/${repo}/releases/new?tag=v1.1.20&title=APPNOTE+v1.1.20`,
+        `https://github.com/${repo}/releases/new?tag=v1.2.0&title=APPNOTE+v1.2.0`,
         '_blank',
         'noopener,noreferrer'
       );
@@ -173,7 +175,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
 
     setIsPublishingRelease(true);
-    setUpdateStatus('Publishing APPNOTE v1.1.20 (Latest) to GitHub Releases...');
+    setUpdateStatus('Publishing APPNOTE v1.2.0 (Latest) to GitHub Releases...');
     try {
       const headers: Record<string, string> = {
         Accept: 'application/vnd.github+json',
@@ -190,30 +192,33 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           headers,
           body: JSON.stringify({
             ref: settings.githubBranch || 'main',
-            inputs: { release_tag: 'v1.1.20' },
+            inputs: { release_tag: 'v1.2.0' },
           }),
         }
       ).catch(() => null);
 
       const releaseBody = [
-        '## APPNOTE v1.1.20',
+        '## APPNOTE v1.2.0',
         '- **Package Name:** `com.aistudio.glassnotes.vqpzxm`',
-        '- **Version Name:** `1.1.20` (`versionCode = 10120`)',
+        '- **Version Name:** `1.2.0` (`versionCode = 10200`)',
         '- **Signing Cert SHA-256:** `8b25970192ce5ae0ed63b04a2d03909111f9ba9afcb837053856137821b8b5b4`',
+        '- **Live WYSIWYG Rich-Text Editor** (real bold/italic/underline/strikethrough/headings/lists/code/tables/links rendered directly in the editor with zero raw markdown tokens)',
+        '- **Custom Text & Highlight Color Picker** (user-selected palette & hex customization replacing random colors)',
+        '- **Real Font Style Picker** (Figtree, Playfair Display, Roboto Mono, Caveat, Space Grotesk applied directly without `#style#` tags)',
         '- **Clean Vector Icon Logo UI** (all emojis replaced with crisp vector Material/Line icons)',
         '- **Real Android Home Screen Widgets Studio** (Jetpack Glance, Small/Medium/Large sizes, transparency & text customization, interactive checklist toggles, quick note & reminder actions)',
         '- **Room Database, DataStore, WorkManager Sync & Boot/Alarm Recovery** (Android 12–16 compatible)',
         '- **Folders, Document Scanner (OCR & PDF) & Custom Reminder Sounds**',
       ].join('\n');
 
-      // 2. Create or update APPNOTE v1.1.20 release as Latest
+      // 2. Create or update APPNOTE v1.2.0 release as Latest
       let releaseRes = await fetch(`https://api.github.com/repos/${repo}/releases`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          tag_name: 'v1.1.20',
+          tag_name: 'v1.2.0',
           target_commitish: settings.githubBranch || 'main',
-          name: 'APPNOTE v1.1.20',
+          name: 'APPNOTE v1.2.0',
           body: releaseBody,
           draft: false,
           prerelease: false,
@@ -223,7 +228,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       if (!releaseRes.ok) {
         const existingTagRes = await fetch(
-          `https://api.github.com/repos/${repo}/releases/tags/v1.1.20`,
+          `https://api.github.com/repos/${repo}/releases/tags/v1.2.0`,
           { headers }
         );
         if (existingTagRes.ok) {
@@ -235,7 +240,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 method: 'PATCH',
                 headers,
                 body: JSON.stringify({
-                  name: 'APPNOTE v1.1.20',
+                  name: 'APPNOTE v1.2.0',
                   body: releaseBody,
                   draft: false,
                   prerelease: false,
@@ -250,11 +255,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       if (releaseRes.ok) {
         onUpdateSettings((s) => ({
           ...s,
-          appVersion: '1.1.20',
-          latestAvailableVersion: 'v1.1.20',
+          appVersion: '1.2.0',
+          latestAvailableVersion: 'v1.2.0',
         }));
-        setUpdateStatus('Published APPNOTE v1.1.20 (Latest) on GitHub Releases!');
-        onShowToast('Published APPNOTE v1.1.20 as Latest on GitHub!');
+        setUpdateStatus('Published APPNOTE v1.2.0 (Latest) on GitHub Releases!');
+        onShowToast('Published APPNOTE v1.2.0 as Latest on GitHub!');
       } else {
         const errData = await releaseRes.json().catch(() => ({}));
         const msg = errData?.message || `HTTP ${releaseRes.status}`;
@@ -349,10 +354,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           setVerifiedSha(sha);
           onUpdateSettings((s) => ({
             ...s,
-            appVersion: '1.1.20',
-            latestAvailableVersion: 'v1.1.20',
+            appVersion: '1.2.0',
+            latestAvailableVersion: 'v1.2.0',
           }));
-          onShowToast('v1.1.20 APK verified (com.aistudio.glassnotes.vqpzxm • Cert 8b259701...)!');
+          onShowToast('v1.2.0 APK verified (com.aistudio.glassnotes.vqpzxm • Cert 8b259701...)!');
         }, 900);
         return;
       }
@@ -476,7 +481,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 </p>
               </div>
               <span className="px-3 py-1 rounded-full text-xs font-extrabold uppercase bg-emerald-500/20 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30 shadow-sm animate-pulse">
-                NEW v1.1.20
+                NEW v1.2.0
               </span>
             </div>
 
@@ -488,11 +493,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'កំណែដំឡើងបច្ចុប្បន្ន' : 'Installed Version'}:</span>
-                <span className="font-semibold">v1.1.20 (code 10120)</span>
+                <span className="font-semibold">v1.2.0 (code 10200)</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'កំណែចុងក្រោយលើ GitHub' : 'Latest GitHub Release'}:</span>
-                <span className="font-bold text-emerald-500">v1.1.20</span>
+                <span className="font-bold text-emerald-500">v1.2.0</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'វិញ្ញាបនបត្រចុះហត្ថលេខា' : 'Signing Cert SHA-256'}:</span>
@@ -500,12 +505,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'កាលបរិច្ឆេទចេញផ្សាយ' : 'Release Date'}:</span>
-                <span className="font-medium text-slate-400">2026-11-12 UTC</span>
+                <span className="font-medium text-slate-400">2026-11-13 UTC</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">{isKm ? 'ស្ថានភាពអាប់ដេត' : 'Update Status'}:</span>
                 <span className="font-semibold text-emerald-500">
-                  {isReadyToInstall ? (isKm ? 'បានផ្ទៀងផ្ទាត់រួចរាល់ (v1.1.20)' : 'Ready to Install (v1.1.20)') : (isKm ? 'v1.1.20 ត្រៀមរួចរាល់' : 'v1.1.20 Verified & Up to Date')}
+                  {isReadyToInstall ? (isKm ? 'បានផ្ទៀងផ្ទាត់រួចរាល់ (v1.2.0)' : 'Ready to Install (v1.2.0)') : (isKm ? 'v1.2.0 ត្រៀមរួចរាល់' : 'v1.2.0 Verified & Up to Date')}
                 </span>
               </div>
               {updateStatus && (
@@ -521,7 +526,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <Info size={14} className="flex-none" />
                 <span>Note on "Package Conflict" / "Signature Mismatch":</span>
               </span>{' '}
-              If your phone shows <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 first, then install the latest <strong>v1.1.20 APK</strong> from GitHub Releases.
+              If your phone shows <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 first, then install the latest <strong>v1.2.0 APK</strong> from GitHub Releases.
             </div>
 
             {/* Prerelease updates toggle checkbox */}
@@ -545,7 +550,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <div className="flex items-center gap-2">
                     <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                      {isKm ? 'កំពុងទាញយក v1.1.20' : 'Downloading v1.1.20 (Release APK)'}
+                      {isKm ? 'កំពុងទាញយក v1.2.0' : 'Downloading v1.2.0 (Release APK)'}
                     </span>
                   </div>
                   <button
@@ -642,18 +647,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   <a
                     href={`https://github.com/${settings.githubOwnerRepo}/releases/latest/download/app-release.apk`}
-                    download="GlassNotes-v1.1.20.apk"
+                    download="GlassNotes-v1.2.0.apk"
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK v1.1.20...' : 'Downloading GlassNotes-v1.1.20.apk from GitHub Releases...')}
+                    onClick={() => onShowToast(isKm ? 'កំពុងទាញយកឯកសារ APK v1.2.0...' : 'Downloading GlassNotes-v1.2.0.apk from GitHub Releases...')}
                     className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all text-center"
                   >
                     <Download size={15} />
-                    <span>Install v1.1.20 APK (Release)</span>
+                    <span>Install v1.2.0 APK (Release)</span>
                   </a>
 
                   <a
-                    href={`https://github.com/${settings.githubOwnerRepo}/releases/download/v1.1.20/GlassNotes.apk`}
+                    href={`https://github.com/${settings.githubOwnerRepo}/releases/download/v1.2.0/GlassNotes.apk`}
                     download="GlassNotes.apk"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -712,7 +717,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <span>{isCheckingUpdate ? 'Checking GitHub...' : isKm ? 'ពិនិត្យមើលកំណែថ្មី' : 'Check Update'}</span>
               </button>
 
-              {/* Download & Install v1.1.20 Button */}
+              {/* Download & Install v1.2.0 Button */}
               {!isDownloading && (
                 <button
                   onClick={handleStartDownload}
@@ -720,7 +725,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-xs font-bold shadow-md hover:brightness-110 active:scale-95 transition-all"
                 >
                   <Download size={16} />
-                  <span>{isKm ? 'ទាញយកការអាប់ដេត (Download Update v1.1.20)' : 'Download Update (v1.1.20)'}</span>
+                  <span>{isKm ? 'ទាញយកការអាប់ដេត (Download Update v1.2.0)' : 'Download Update (v1.2.0)'}</span>
                 </button>
               )}
 
@@ -743,7 +748,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   <PlusCircle size={14} className={`text-emerald-400 ${isPublishingRelease ? 'animate-spin' : ''}`} />
                   <span>
                     {isPublishingRelease
-                      ? 'Publishing v1.1.20...'
+                      ? 'Publishing v1.2.0...'
                       : 'Add to Releases (GitHub)'}
                   </span>
                 </button>
@@ -774,15 +779,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               {/* Direct APK Link */}
               <div className="flex items-center justify-between gap-2 pt-1 text-xs">
                 <a
-                  href={`https://github.com/${settings.githubOwnerRepo}/releases/download/v1.1.20/GlassNotes.apk`}
-                  download="GlassNotes-v1.1.20.apk"
+                  href={`https://github.com/${settings.githubOwnerRepo}/releases/download/v1.2.0/GlassNotes.apk`}
+                  download="GlassNotes-v1.2.0.apk"
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={() => onShowToast('Opening GitHub Release APK v1.1.20')}
+                  onClick={() => onShowToast('Opening GitHub Release APK v1.2.0')}
                   className="flex items-center gap-1.5 text-blue-500 hover:underline font-semibold"
                 >
                   <Download size={13} />
-                  <span>Download Release APK (v1.1.20)</span>
+                  <span>Download Release APK (v1.2.0)</span>
                 </a>
 
                 <a
@@ -1157,7 +1162,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
       {/* Release Notes Modal */}
       <ReleaseNotesModal
-        version={settings.latestAvailableVersion || 'v1.1.20'}
+        version={settings.latestAvailableVersion || 'v1.2.0'}
         isOpen={showReleaseNotes}
         onClose={() => setShowReleaseNotes(false)}
         onDownloadApk={() => onShowToast('Downloading GlassNotes.apk')}

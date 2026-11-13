@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release version tag (e.g. v1.1.20)'
+        description: 'Release version tag (e.g. v1.2.0)'
         required: false
-        default: 'v1.1.20'
+        default: 'v1.2.0'
 
 permissions:
   contents: write
@@ -66,14 +66,14 @@ jobs:
           elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
             TAG_NAME="${{ github.event.inputs.release_tag }}"
           else
-            TAG_NAME="v1.1.20"
+            TAG_NAME="v1.2.0"
           fi
           CLEAN_VERSION="${TAG_NAME#v}"
           IFS='.' read -r MAJOR MINOR PATCH <<< "${CLEAN_VERSION}"
           MAJOR=${MAJOR:-1}
-          MINOR=${MINOR:-1}
+          MINOR=${MINOR:-2}
           PATCH=${PATCH%%[^0-9]*}
-          PATCH=${PATCH:-20}
+          PATCH=${PATCH:-0}
           VERSION_CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "version_name=${CLEAN_VERSION}" >> "$GITHUB_OUTPUT"
@@ -87,7 +87,7 @@ jobs:
           git tag -f "${TAG_NAME}" "${GITHUB_SHA}" || true
           git push origin "refs/tags/${TAG_NAME}" --force || true
 
-      - name: Build & Sign Android APK (v1.1.20 / 10120) with Official Keystore
+      - name: Build & Sign Android APK (v1.2.0 / 10200) with Official Keystore
         run: |
           touch .env .env.example
           # Remove any orphaned merged values.xml left in repo that duplicates colors.xml/strings.xml/themes.xml

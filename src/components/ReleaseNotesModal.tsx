@@ -21,7 +21,7 @@ interface ReleaseNotesModalProps {
 }
 
 export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
-  version = 'v1.1.20',
+  version = 'v1.2.0',
   isOpen,
   onClose,
   onDownloadApk,
@@ -47,7 +47,7 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                Clean Vector Icon Logo UI, Jetpack Glance Home Screen Widgets, and 4 Powerhouse Suites
+                Live WYSIWYG Rich Editor, Custom Text & Highlight Colors, Font Picker & Glance Widgets
               </p>
             </div>
           </div>
@@ -148,15 +148,15 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Headings H1 / H2 / H3, Bold, Italic, Strikethrough</span>
+                <span>Live WYSIWYG formatting (zero raw markdown syntax)</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Interactive checklists, numbered & bullet lists</span>
+                <span>Custom Text & Highlight Color Picker + Font Styles</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-purple-400 flex-none" />
-                <span>Markdown tables, blockquotes, code blocks</span>
+                <span>Tables, quotes, code blocks & interactive checklists</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={14} className="text-purple-400 flex-none" />
@@ -217,7 +217,7 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
               <span>Installation & Package Conflict Note</span>
             </div>
             <p>
-              If your phone displays <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 version first, then install <strong>v1.1.20</strong> for a smooth, conflict-free setup.
+              If your phone displays <em>"App not installed as package conflicts with an existing package"</em>, please uninstall the older v1.0 version first, then install <strong>v1.2.0</strong> for a smooth, conflict-free setup.
             </p>
           </div>
         </div>
@@ -242,15 +242,15 @@ export const ReleaseNotesModal: React.FC<ReleaseNotesModalProps> = ({
               Close
             </button>
             <a
-              href={`https://github.com/${githubOwnerRepo}/releases/download/v1.1.20/GlassNotes.apk`}
-              download="GlassNotes-v1.1.20.apk"
+              href={`https://github.com/${githubOwnerRepo}/releases/download/v1.2.0/GlassNotes.apk`}
+              download="GlassNotes-v1.2.0.apk"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => onDownloadApk?.()}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all"
             >
               <Download size={14} />
-              <span>Download v1.1.20 APK</span>
+              <span>Download v1.2.0 APK</span>
             </a>
           </div>
         </div>
